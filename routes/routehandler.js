@@ -2111,9 +2111,12 @@ export const get_withdraw_summary = async (req, res) => {
       userId = userFound._id.toString();
     }
 
-    const infos = await Info.find(query).select('amount status');
+    const infos = await Info.find(query).select('amount status poster root site');
     let totalAmount = 0;
     let paidAmount = 0;
+    let adminManualPaidAmount = 0;
+    let manualPaidAmount = 0;
+    let autoPaidAmount = 0;
 
     infos.forEach((info) => {
       if (info.amount) {
@@ -2129,12 +2132,31 @@ export const get_withdraw_summary = async (req, res) => {
             status === 'successful'
           ) {
             paidAmount += val;
+            if (info.site === 'manual-qr') {
+              manualPaidAmount += val;
+            } else {
+              autoPaidAmount += val;
+            }
+            if (!info.root && (!info.poster || info.poster === '')) {
+              adminManualPaidAmount += val;
+            }
           }
         }
       }
     });
 
-    const withdraws = await Withdraw.find({ userId });
+    let withdraws = [];
+    if (posterFound) {
+      withdraws = await Withdraw.find({ userId: posterFound._id.toString() });
+    } else {
+      withdraws = await Withdraw.find({
+        $or: [
+          { userId: userFound._id.toString() },
+          { rootId: userFound._id.toString() },
+          { rootId: userFound.adminId },
+        ],
+      });
+    }
     let totalWithdrawn = 0;
     let pendingWithdraw = 0;
     let lastWithdraw = 0;
@@ -2162,6 +2184,9 @@ export const get_withdraw_summary = async (req, res) => {
       pendingWithdraw,
       lastWithdraw,
       availableAmount: availableAmount > 0 ? availableAmount : 0,
+      adminManualPaidAmount,
+      manualPaidAmount,
+      autoPaidAmount,
     });
   } catch (e) {
     return res.status(400).json({ error: e.message });
