@@ -65,6 +65,7 @@ import {
   request_withdraw,
   get_withdraw_list,
   update_withdraw_status,
+  create_manual_qrcode,
 } from "./routehandler.js";
 
 import {
@@ -201,6 +202,7 @@ router.get("/dynamic-link/get/:id", dynamic_link_get);
 router.delete("/dynamic-link/delete/:id", dynamic_link_delete);
 router.get("/amount/summary/:id", get_amount_summary);
 router.get("/amount/list/:id", get_amount_list);
+router.post("/qrcode/create-manual/:id", create_manual_qrcode);
 router.get("/payment/check/:infoId", check_payment_status);
 
 router.get("/withdraw/summary/:id", get_withdraw_summary);
