@@ -14,6 +14,10 @@ import connectDB from './database.js'
 import rateLimitMiddleware from "./ratelimiter.js"
 import { initNwc } from './utils/webln.js'
 
+import WebSocket from "ws";
+
+global.WebSocket = WebSocket;
+
 
 let interval;
 // const getApiAndEmit = "TODO";
