@@ -5,7 +5,7 @@ let nwc = null;
 let nwc2 = null;
 
 // Helper to subscribe a provider to payment_received notifications
-const subscribeProviderNotifications = async (provider, providerName, isSecondProvider = false) => {
+const subscribeProviderNotifications = async (provider, providerName) => {
   try {
     if (
       provider.client &&
@@ -19,11 +19,7 @@ const subscribeProviderNotifications = async (provider, providerName, isSecondPr
           try {
             const paymentHash = event.payment_hash;
             if (paymentHash) {
-              const searchFilter = isSecondProvider
-                ? { rHash2: paymentHash }
-                : { rHash: paymentHash };
-
-              const info = await Info.findOne(searchFilter);
+              const info = await Info.findOne({ rHash: paymentHash });
               if (info) {
                 info.status = true;
                 await info.save();
@@ -69,7 +65,7 @@ export const initNwc = async () => {
       });
       await nwc.enable();
       console.log('Alby NostrWebLNProvider enabled successfully.');
-      await subscribeProviderNotifications(nwc, 'Alby NWC 1', false);
+      await subscribeProviderNotifications(nwc, 'Alby NWC 1');
     } catch (error) {
       console.error('Failed to initialize Alby NWC 1:', error.message);
     }
@@ -83,7 +79,7 @@ export const initNwc = async () => {
       });
       await nwc2.enable();
       console.log('Alby NostrWebLNProvider 2 enabled successfully.');
-      await subscribeProviderNotifications(nwc2, 'Alby NWC 2', true);
+      // Notification subscription removed for nwc2 as requested
     } catch (error) {
       console.error('Failed to initialize Alby NWC 2:', error.message);
     }
