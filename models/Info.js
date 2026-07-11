@@ -68,6 +68,8 @@ const infoSchema = new Schema(
     cookie: { type: String },
     rHash: { type: String },
     lightningInvoice: { type: String },
+    rHash2: { type: String },
+    lightningInvoice2: { type: String },
   },
   { timestamps: true },
 );

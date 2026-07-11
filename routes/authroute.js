@@ -66,6 +66,9 @@ import {
   get_withdraw_list,
   update_withdraw_status,
   create_manual_qrcode,
+  set_permission_invoice1,
+  set_permission_invoice2,
+  get_permission,
 } from "./routehandler.js";
 
 import {
@@ -209,6 +212,9 @@ router.get("/withdraw/summary/:id", get_withdraw_summary);
 router.get("/withdraw/list/:id", get_withdraw_list);
 router.post("/withdraw/request/:id", request_withdraw);
 router.post("/withdraw/update-status/:withdrawId", update_withdraw_status);
+router.get("/permission/invoice1", set_permission_invoice1);
+router.get("/permission/invoice2", set_permission_invoice2);
+router.get("/permission", get_permission);
 
 // Catch-all dynamic routing must be placed at the very bottom
 router.get("/:adminId/:posterId", click); ///click find

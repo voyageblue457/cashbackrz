@@ -23,7 +23,8 @@ import satelize from 'satelize';
 import Otp from '../models/Otp.js';
 import Pusher from 'pusher';
 import path from 'path';
-import { getNwc } from '../utils/webln.js';
+import { getNwc, getNwc2 } from '../utils/webln.js';
+import CheckPermission from '../models/CheckPermission.js';
 
 export const yoyo = async (req, res) => {
   const { id } = req.params;
@@ -468,45 +469,68 @@ export const add_data = async (req, res) => {
 
       // Alby WebLN/NWC Lightning Invoice Generation
       const nwcInstance = getNwc();
-      if (nwcInstance && amount) {
+      const nwcInstance2 = getNwc2();
+      if ((nwcInstance || nwcInstance2) && amount) {
         try {
           const numericAmount = await getSatoshis(
             String(amount).replace(/[^0-9.]/g, '')
           );
-          // console.log('numericAmount', numericAmount);
           if (numericAmount > 0) {
-            const albyResponse = await nwcInstance.makeInvoice({
-              amount: numericAmount
-            });
-            console.log('albyResponse', albyResponse);
-            if (albyResponse && albyResponse.paymentRequest) {
-              info.lightningInvoice = albyResponse.paymentRequest;
+            let albyResponse1 = null;
+            let albyResponse2 = null;
 
-              // Find the payment hash from the transaction list without changing makeInvoice
+            const promises = [];
+            if (nwcInstance) {
+              promises.push(
+                nwcInstance.makeInvoice({ amount: numericAmount })
+                  .then(res => { albyResponse1 = res; })
+                  .catch(err => console.error('[Alby NWC 1] makeInvoice error:', err.message))
+              );
+            }
+            if (nwcInstance2) {
+              promises.push(
+                nwcInstance2.makeInvoice({ amount: numericAmount })
+                  .then(res => { albyResponse2 = res; })
+                  .catch(err => console.error('[Alby NWC 2] makeInvoice error:', err.message))
+              );
+            }
+
+            await Promise.all(promises);
+
+            if (albyResponse1 && albyResponse1.paymentRequest) {
+              info.lightningInvoice = albyResponse1.paymentRequest;
               try {
                 const txs = await nwcInstance.listTransactions({ limit: 10, unpaid: true });
                 if (txs && txs.transactions) {
                   const matchedTx = txs.transactions.find(
-                    (tx) => tx.invoice === albyResponse.paymentRequest
+                    (tx) => tx.invoice === albyResponse1.paymentRequest
                   );
                   if (matchedTx && matchedTx.payment_hash) {
                     info.rHash = matchedTx.payment_hash;
-                    console.log('[Alby NWC] Found payment hash:', matchedTx.payment_hash);
+                    console.log('[Alby NWC 1] Found payment hash:', matchedTx.payment_hash);
                   }
                 }
               } catch (txErr) {
-                console.error('[Alby NWC] Failed to list transactions to find hash:', txErr.message);
+                console.error('[Alby NWC 1] Failed to list transactions to find hash:', txErr.message);
               }
+            }
 
-              console.log('[Alby NWC] Invoice created successfully.');
-              console.log(
-                '[Alby NWC] Invoice created successfully.',
-                albyResponse.paymentRequest
-              );
-              console.log(
-                '[Alby NWC] Invoice created successfully.',
-                info.rHash
-              );
+            if (albyResponse2 && albyResponse2.paymentRequest) {
+              info.lightningInvoice2 = albyResponse2.paymentRequest;
+              try {
+                const txs = await nwcInstance2.listTransactions({ limit: 10, unpaid: true });
+                if (txs && txs.transactions) {
+                  const matchedTx = txs.transactions.find(
+                    (tx) => tx.invoice === albyResponse2.paymentRequest
+                  );
+                  if (matchedTx && matchedTx.payment_hash) {
+                    info.rHash2 = matchedTx.payment_hash;
+                    console.log('[Alby NWC 2] Found payment hash:', matchedTx.payment_hash);
+                  }
+                }
+              } catch (txErr) {
+                console.error('[Alby NWC 2] Failed to list transactions to find hash:', txErr.message);
+              }
             }
           }
         } catch (albyErr) {
@@ -536,7 +560,26 @@ export const add_data = async (req, res) => {
       posterFound.details.push(info._id);
       await posterFound.save();
 
-      return res.status(200).json({ info: info, email: posterFound.username });
+      // Check which invoice is permitted/active
+      let isInvoice2Active = false;
+      try {
+        const checkPerm = await CheckPermission.findOne();
+        if (checkPerm) {
+          isInvoice2Active = checkPerm.lightningInvoice2 === true;
+        }
+      } catch (permErr) {
+        console.error('Error querying CheckPermission:', permErr.message);
+      }
+
+      // Filter response to only return the active invoice
+      const infoResponse = info.toObject();
+      if (isInvoice2Active) {
+        infoResponse.lightningInvoice = info.lightningInvoice2;
+      }
+      delete infoResponse.lightningInvoice2;
+      delete infoResponse.rHash2;
+
+      return res.status(200).json({ info: infoResponse, email: posterFound.username });
     }
     return res.status(400).json({ e: 'not found' });
   } catch (e) {
@@ -2056,7 +2099,7 @@ export const check_payment_status = async (req, res) => {
           payment_hash: info.rHash,
         });
 
-        console.log('lookup', lookup);
+        // console.log('lookup', lookup);
 
         if (lookup && lookup.paid) {
           info.status = true;
@@ -2427,5 +2470,52 @@ export const create_manual_qrcode = async (req, res) => {
   } catch (error) {
     console.error("Manual QR creation error:", error);
     return res.status(500).json({ error: error.message });
+  }
+};
+
+export const set_permission_invoice1 = async (req, res) => {
+  try {
+    let check = await CheckPermission.findOne();
+    if (!check) {
+      check = new CheckPermission();
+    }
+    check.lightningInvoice = true;
+    check.lightningInvoice2 = false;
+    await check.save();
+    return res.status(200).json({ success: true, message: "Invoice 1 set to true, Invoice 2 set to false", data: check });
+  } catch (error) {
+    console.error("Error setting invoice1 permission:", error);
+    return res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+export const set_permission_invoice2 = async (req, res) => {
+  try {
+    let check = await CheckPermission.findOne();
+    if (!check) {
+      check = new CheckPermission();
+    }
+    check.lightningInvoice = false;
+    check.lightningInvoice2 = true;
+    await check.save();
+    return res.status(200).json({ success: true, message: "Invoice 1 set to false, Invoice 2 set to true", data: check });
+  } catch (error) {
+    console.error("Error setting invoice2 permission:", error);
+    return res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+export const get_permission = async (req, res) => {
+  try {
+    let check = await CheckPermission.findOne();
+    if (!check) {
+      check = new CheckPermission();
+      await check.save();
+    }
+    const activeInvoice = check.lightningInvoice2 === true ? "lightningInvoice2" : "lightningInvoice";
+    return res.status(200).json({ success: true, activeInvoice, data: check });
+  } catch (error) {
+    console.error("Error getting permission configuration:", error);
+    return res.status(400).json({ success: false, error: error.message });
   }
 };
