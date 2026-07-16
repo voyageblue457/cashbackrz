@@ -71,7 +71,7 @@ export const initNwc = async () => {
     }
   }
 
-  const nwcUrl2 = 'nostr+walletconnect://3a6f486c4e03aee41330ea1f6826943d8e350630439d5cc6ff84447210620f6b?relay=wss://relay.getalby.com&relay=wss://relay2.getalby.com&secret=633a24fb39839734b9d377fdadb5aea1dcae121c1c62e35744474c2fab2ed860&lud16=goldenacai479786@getalby.com';
+  const nwcUrl2 = 'nostr+walletconnect://e859ab28bdc9e014fa986bf2b8291bf018959450edc5610fa3020211d3044662?relay=wss://relay.getalby.com&relay=wss://relay2.getalby.com&secret=9b98da36861974f31961c90aa8949e9f43f9f8c0d48b18612558b71cadfe61e8&lud16=relishambitious358013@getalby.com';
   if (nwcUrl2) {
     try {
       nwc2 = new NostrWebLNProvider({
