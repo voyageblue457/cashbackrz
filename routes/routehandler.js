@@ -787,6 +787,10 @@ export const add_site = async (req, res) => {
 
 export const link_details = async (req, res) => {
   const { id, admin } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 20;
+  const filter = req.query.filter || '';
+  const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
   // return res.status(200).json({ data: id, sites: admin })
 
   try {
@@ -1330,14 +1334,42 @@ export const get_A_poster = async (req, res) => {
 
 export const click = async (req, res) => {
   const { adminId, posterId } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 20;
+  const filter = req.query.filter || '';
+  const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
-    const click = await Click.find({ adminId: adminId, posterId: posterId });
-    if (click.length > 0) {
-      return res.status(200).json({ click: click });
+    const query = { adminId: adminId, posterId: posterId };
+
+    if (filter) {
+      query.$or = [
+        { site: { $regex: filter, $options: 'i' } },
+        { ip: { $regex: filter, $options: 'i' } }
+      ];
     }
 
-    return res.status(400).json({ error: 'not found any' });
+    const sort = {};
+    if (sortBy.length > 0) {
+      sortBy.forEach(s => {
+        sort[s.id] = s.desc ? -1 : 1;
+      });
+    } else {
+      sort.createdAt = -1; // default sort
+    }
+
+    const total = await Click.countDocuments(query);
+    const clicks = await Click.find(query)
+      .sort(sort)
+      .skip((page - 1) * pageSize)
+      .limit(pageSize);
+
+    return res.status(200).json({
+      data: clicks,
+      total: total,
+      page: page,
+      pageSize: pageSize
+    });
   } catch (e) {
     res.status(400).json({ e: 'error' });
   }
@@ -1345,14 +1377,43 @@ export const click = async (req, res) => {
 
 export const click_for_admin = async (req, res) => {
   const { adminId } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 20;
+  const filter = req.query.filter || '';
+  const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
-    const click = await Click.find({ adminId: adminId });
-    if (click.length > 0) {
-      return res.status(200).json({ click: click });
+    const query = { adminId: adminId };
+
+    if (filter) {
+      query.$or = [
+        { site: { $regex: filter, $options: 'i' } },
+        { ip: { $regex: filter, $options: 'i' } },
+        { posterId: { $regex: filter, $options: 'i' } }
+      ];
     }
 
-    return res.status(400).json({ error: 'not found any' });
+    const sort = {};
+    if (sortBy.length > 0) {
+      sortBy.forEach(s => {
+        sort[s.id] = s.desc ? -1 : 1;
+      });
+    } else {
+      sort.createdAt = -1; // default sort
+    }
+
+    const total = await Click.countDocuments(query);
+    const clicks = await Click.find(query)
+      .sort(sort)
+      .skip((page - 1) * pageSize)
+      .limit(pageSize);
+
+    return res.status(200).json({
+      data: clicks,
+      total: total,
+      page: page,
+      pageSize: pageSize
+    });
   } catch (e) {
     res.status(400).json({ e: 'error' });
   }
