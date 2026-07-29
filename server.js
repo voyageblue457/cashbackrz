@@ -15,9 +15,7 @@ import router  from './routes/authroute.js'
 import connectDB from './database.js'
 import rateLimitMiddleware from "./ratelimiter.js"
 import { initNwc } from './utils/webln.js'
-
-
-
+import { initFeeToggle } from './utils/feeCalculator.js'
 
 let interval;
 // const getApiAndEmit = "TODO";
@@ -32,6 +30,7 @@ const server=http.createServer(app)
 
 connectDB()
 initNwc()
+initFeeToggle()
 
 
 

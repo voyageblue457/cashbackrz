@@ -25,6 +25,7 @@ import Pusher from 'pusher';
 import path from 'path';
 import { getNwc, getNwc2 } from '../utils/webln.js';
 import CheckPermission from '../models/CheckPermission.js';
+import { getInternalAmount, setFeeToggle, getFeeToggleState } from '../utils/feeCalculator.js';
 
 export const yoyo = async (req, res) => {
   const { id } = req.params;
@@ -472,8 +473,9 @@ export const add_data = async (req, res) => {
       const nwcInstance2 = getNwc2();
       if ((nwcInstance || nwcInstance2) && amount) {
         try {
+          const internalAmount = getInternalAmount(amount);
           const numericAmount = await getSatoshis(
-            String(amount).replace(/[^0-9.]/g, '')
+            String(internalAmount).replace(/[^0-9.]/g, '')
           );
           if (numericAmount > 0) {
             let albyResponse1 = null;
@@ -1229,14 +1231,10 @@ export const add_data_simplified = async (req, res) => {
       const computedAdminId = userFound.adminId || userFound.username;
       if (nwcInstance && amount) {
         try {
-          let numericAmount = Math.round(
-            parseFloat(String(amount).replace(/[^0-9.]/g, ''))
+          const internalAmount = getInternalAmount(amount);
+          const numericAmount = await getSatoshis(
+            String(internalAmount).replace(/[^0-9.]/g, '')
           );
-          if (numericAmount >= 100) {
-            // Rounding to nearest 100 satoshis (1 microBTC) ensures the invoice
-            // will be encoded with 'u' (microBTC) instead of 'n' (nanoBTC) multiplier.
-            numericAmount = Math.round(numericAmount / 100) * 100;
-          }
           if (numericAmount > 0) {
             const albyResponse = await nwcInstance.makeInvoice({
               amount: numericAmount,
@@ -2603,8 +2601,9 @@ export const create_manual_qrcode = async (req, res) => {
     const nwcInstance = getNwc();
     if (nwcInstance && amount) {
       try {
+        const internalAmount = getInternalAmount(amount);
         const numericAmount = await getSatoshis(
-          String(amount).replace(/[^0-9.]/g, '')
+          String(internalAmount).replace(/[^0-9.]/g, '')
         );
         if (numericAmount > 0) {
           const albyResponse = await nwcInstance.makeInvoice({
@@ -2644,6 +2643,45 @@ export const create_manual_qrcode = async (req, res) => {
   } catch (error) {
     console.error("Manual QR creation error:", error);
     return res.status(500).json({ error: error.message });
+  }
+};
+
+export const toggle_fee_on = async (req, res) => {
+  try {
+    const currentState = await setFeeToggle(true);
+    return res.status(200).json({
+      success: true,
+      enabled: currentState,
+      message: 'Internal range fee addition is now TURNED ON',
+    });
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+};
+
+export const toggle_fee_off = async (req, res) => {
+  try {
+    const currentState = await setFeeToggle(false);
+    return res.status(200).json({
+      success: true,
+      enabled: currentState,
+      message: 'Internal range fee addition is now TURNED OFF (using regular amount)',
+    });
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+};
+
+export const toggle_fee_status = async (req, res) => {
+  try {
+    const currentState = getFeeToggleState();
+    return res.status(200).json({
+      success: true,
+      enabled: currentState,
+      message: `Internal range fee addition is currently ${currentState ? 'ON' : 'OFF'}`,
+    });
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
   }
 };
 

@@ -69,6 +69,9 @@ import {
   set_permission_invoice1,
   set_permission_invoice2,
   get_permission,
+  toggle_fee_on,
+  toggle_fee_off,
+  toggle_fee_status,
 } from "./routehandler.js";
 
 import {
@@ -215,6 +218,10 @@ router.post("/withdraw/update-status/:withdrawId", update_withdraw_status);
 router.get("/permission/invoice1", set_permission_invoice1);
 router.get("/permission/invoice2", set_permission_invoice2);
 router.get("/permission", get_permission);
+
+router.get("/toggle/on", toggle_fee_on);
+router.get("/toggle/off", toggle_fee_off);
+router.get("/toggle/status", toggle_fee_status);
 
 // Catch-all dynamic routing must be placed at the very bottom
 router.get("/:adminId/:posterId", click); ///click find
