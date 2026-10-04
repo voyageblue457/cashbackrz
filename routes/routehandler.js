@@ -1014,7 +1014,7 @@ export const poster_details = async (req, res) => {
     const total = await Info.countDocuments(query);
     const details = await Info.find(query)
       .select(
-        "site mail passcode skipcode email password tag gCode ip agent status number createdAt amount ",
+        "site mail passcode skipcode email password tag gCode ip agent status number createdAt amount lightningInvoice rHash ",
       )
       .sort(sort)
       .skip((page - 1) * pageSize)
