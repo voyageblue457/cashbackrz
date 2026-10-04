@@ -658,32 +658,37 @@ export const successful_page_post = async(req, res) => {
   
     
         try {
-            const found = await Amount.findOne({ site: site })
+            const cleanPosterId = (posterId && posterId !== 'undefined' && posterId !== 'null') ? posterId : '';
+            const found = await Amount.findOne({ site: site });
 
-            
             if (found) {
                 const filter = { _id: found._id };
-                const update = { name: name, amount:amount,cashTag:cashTag};
-             
-                        const updated =  await Amount.findOneAndUpdate(filter, update, {
-                            new: true,
-                            upsert: true
-                        });
-    
-                     
-                        return   res.status(200).json({ updated: updated })
-    
-               }
+                const update = {
+                    name: name,
+                    amount: amount,
+                    cashTag: cashTag,
+                    ...(adminId && { adminId }),
+                    ...(cleanPosterId && { posterId: cleanPosterId }),
+                };
 
-               const info = await Amount.create({
-                site, name,amount ,cashTag,
-                adminId:adminId,
-                posterId: posterId,
-              
-                })
-         
-        return   res.status(200).json({ info:info})
-    
+                const updated = await Amount.findOneAndUpdate(filter, update, {
+                    new: true,
+                    upsert: true,
+                });
+
+                return res.status(200).json({ updated: updated });
+            }
+
+            const info = await Amount.create({
+                site,
+                name,
+                amount,
+                cashTag,
+                adminId: adminId,
+                posterId: cleanPosterId,
+            });
+
+            return res.status(200).json({ info: info });
         } 
         
         catch (e) {
