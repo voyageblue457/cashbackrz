@@ -2709,7 +2709,11 @@ export const get_amount_list = async (req, res) => {
 
   try {
     const posterFound = await Poster.findOne({
-      $or: [{ posterId: id }, { _id: id && id.length === 24 ? id : null }],
+      $or: [
+        { posterId: id },
+        { _id: id && id.length === 24 ? id : null },
+        { username: id },
+      ],
     });
     let query = {};
     if (posterFound) {
@@ -2717,7 +2721,17 @@ export const get_amount_list = async (req, res) => {
       if (posterFound.posterId && posterFound.posterId.trim() !== "") {
         posterIds.push(posterFound.posterId);
       }
-      query = { poster: { $in: posterIds } };
+      if (posterFound.username && posterFound.username.trim() !== "") {
+        posterIds.push(posterFound.username);
+      }
+      const posterCriteria = [
+        { root: posterFound._id },
+        { poster: { $in: posterIds } },
+      ];
+      if (posterFound.details && posterFound.details.length > 0) {
+        posterCriteria.push({ _id: { $in: posterFound.details } });
+      }
+      query = { $or: posterCriteria };
     } else {
       const userFound = await User.findOne({
         $or: [
