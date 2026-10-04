@@ -2590,12 +2590,12 @@ export const get_amount_summary = async (req, res) => {
         status: true,
       };
 
-      console.log("=================================");
-      console.log("TYPE: POSTER");
-      console.log("Poster _id:", posterFound._id.toString());
-      console.log("Poster posterId:", posterFound.posterId);
-      console.log("Query:", query);
-      console.log("=================================");
+      // console.log("=================================");
+      // console.log("TYPE: POSTER");
+      // console.log("Poster _id:", posterFound._id.toString());
+      // console.log("Poster posterId:", posterFound.posterId);
+      // console.log("Query:", query);
+      // console.log("=================================");
     } else {
       // =====================================================
       // 2. Check if ID belongs to User/Admin
@@ -2628,12 +2628,12 @@ export const get_amount_summary = async (req, res) => {
           status: true,
         };
 
-        console.log("=================================");
-        console.log("TYPE: ADMIN");
-        console.log("User _id:", userFound._id.toString());
-        console.log("Admin ID:", userFound.adminId);
-        console.log("Query:", query);
-        console.log("=================================");
+        // console.log("=================================");
+        // console.log("TYPE: ADMIN");
+        // console.log("User _id:", userFound._id.toString());
+        // console.log("Admin ID:", userFound.adminId);
+        // console.log("Query:", query);
+        // console.log("=================================");
       } else {
         // =====================================================
         // 4. Normal User
@@ -2649,12 +2649,12 @@ export const get_amount_summary = async (req, res) => {
           status: true,
         };
 
-        console.log("=================================");
-        console.log("TYPE: USER");
-        console.log("User _id:", userFound._id.toString());
-        console.log("Posters:", posterIds);
-        console.log("Query:", query);
-        console.log("=================================");
+        // console.log("=================================");
+        // console.log("TYPE: USER");
+        // console.log("User _id:", userFound._id.toString());
+        // console.log("Posters:", posterIds);
+        // console.log("Query:", query);
+        // console.log("=================================");
       }
     }
 
@@ -2665,8 +2665,8 @@ export const get_amount_summary = async (req, res) => {
       .select("amount status adminId poster root")
       .lean();
 
-    console.log("Type:", type);
-    console.log("Verified infos:", infos.length);
+    // console.log("Type:", type);
+    // console.log("Verified infos:", infos.length);
 
     // =====================================================
     // 6. Calculate verified total
@@ -2681,7 +2681,7 @@ export const get_amount_summary = async (req, res) => {
       }
     });
 
-    console.log("Verified total:", total);
+    // console.log("Verified total:", total);
 
     // =====================================================
     // 7. Response
