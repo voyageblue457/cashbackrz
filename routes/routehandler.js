@@ -449,17 +449,40 @@ export const add_data = async (req, res) => {
     let actualSite = site;
     let posterFound = null;
 
+    // 1. Resolve Admin first
+    let userFound = await User.findOne({
+      $or: [
+        { adminId: adminId },
+        { username: adminId },
+        { _id: adminId && adminId.length === 24 ? adminId : null },
+      ],
+    });
+
+    let adminPosterIds = [];
+    if (userFound) {
+      const postersOfAdmin = await Poster.find({ root: userFound._id }).select('_id username posterId');
+      adminPosterIds = postersOfAdmin.map((p) => p._id);
+    }
+
+    // 2. Resolve Poster within this Admin's posters
     if (site) {
-      let linkMatch = await Link.findOne({ linkName: site }).populate({
+      let linkQuery = { linkName: site };
+      if (adminPosterIds.length > 0) {
+        linkQuery.root = { $in: adminPosterIds };
+      }
+
+      let linkMatch = await Link.findOne(linkQuery).populate({
         path: 'root',
         populate: { path: 'root', model: 'User' },
       });
 
       if (!linkMatch) {
         const escapedSite = site.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        linkMatch = await Link.findOne({
-          linkName: new RegExp(`^${escapedSite}/`, 'i'),
-        }).populate({
+        let regexQuery = { linkName: new RegExp(`^${escapedSite}/`, 'i') };
+        if (adminPosterIds.length > 0) {
+          regexQuery.root = { $in: adminPosterIds };
+        }
+        linkMatch = await Link.findOne(regexQuery).populate({
           path: 'root',
           populate: { path: 'root', model: 'User' },
         });
@@ -470,28 +493,27 @@ export const add_data = async (req, res) => {
         if (linkMatch.root) {
           posterFound = linkMatch.root;
         } else if (linkMatch.username) {
-          posterFound = await Poster.findOne({ username: linkMatch.username }).populate('root');
+          posterFound = await Poster.findOne({
+            username: linkMatch.username,
+            ...(userFound ? { root: userFound._id } : {}),
+          }).populate('root');
         }
       }
     }
 
     if (!posterFound) {
-      posterFound = await Poster.findOne({
+      let posterQuery = {
         $or: [
           { _id: posterId && posterId.length === 24 ? posterId : null },
           { posterId: posterId },
           { username: posterId },
         ],
-      }).populate('root');
+      };
+      if (userFound) {
+        posterQuery.root = userFound._id;
+      }
+      posterFound = await Poster.findOne(posterQuery).populate('root');
     }
-
-    let userFound = await User.findOne({
-      $or: [
-        { adminId: adminId },
-        { username: adminId },
-        { _id: adminId && adminId.length === 24 ? adminId : null },
-      ],
-    });
 
     if (!userFound && posterFound?.root) {
       userFound = posterFound.root?._id ? posterFound.root : await User.findById(posterFound.root);
@@ -975,39 +997,33 @@ export const poster_details = async (req, res) => {
     if (poster?.posterId) posterIds.push(poster.posterId);
     if (poster?.username) posterIds.push(poster.username);
 
-    const linkPrefixes = allPosterLinks
-      .map((l) => {
-        try {
-          const u = new URL(l.startsWith('http') ? l : `https://${l}`);
-          const parts = u.pathname.split('/').filter(Boolean);
-          if (parts.length >= 2) {
-            return `${u.origin}/${parts[0]}`;
-          }
-        } catch (e) {}
-        return null;
-      })
-      .filter(Boolean);
+    const adminIdVal = poster.root?.adminId || poster.root?.username;
 
-    const queryOr = [
+    // Build scoped query conditions
+    const posterCriteria = [
       { root: poster._id },
-      { root: id },
       { poster: { $in: posterIds } },
     ];
     if (poster.details && poster.details.length > 0) {
-      queryOr.push({ _id: { $in: poster.details } });
-    }
-    if (allPosterLinks.length > 0) {
-      queryOr.push({ site: { $in: allPosterLinks } });
-    }
-    if (linkPrefixes.length > 0) {
-      queryOr.push({ site: { $in: linkPrefixes } });
+      posterCriteria.push({ _id: { $in: poster.details } });
     }
 
-    let query = { $or: queryOr };
+    // Must belong to this poster OR (if matching this poster's unique links, must belong to this admin)
+    const baseConditions = [{ $or: posterCriteria }];
+    if (allPosterLinks.length > 0 && adminIdVal) {
+      baseConditions.push({
+        $and: [
+          { adminId: adminIdVal },
+          { site: { $in: allPosterLinks } },
+        ],
+      });
+    }
+
+    let query = { $or: baseConditions };
     if (filter) {
       query = {
         $and: [
-          { $or: queryOr },
+          { $or: baseConditions },
           {
             $or: [
               { site: { $regex: filter, $options: 'i' } },
@@ -1047,7 +1063,7 @@ export const poster_details = async (req, res) => {
             return item;
           }
 
-          // Otherwise, find a 2-parameter link for this poster with matching first segment
+          // Find a 2-parameter link for this poster with matching first segment
           let matchedTwoParamLink = allPosterLinks.find((pl) => {
             if (!pl) return false;
             const plParts = cleanUrlParts(pl);
@@ -1063,16 +1079,11 @@ export const poster_details = async (req, res) => {
             return false;
           });
 
-          // Fallback: if no prefix match but poster has a 2-parameter link, use the poster's 2-parameter link
-          if (!matchedTwoParamLink) {
-            matchedTwoParamLink = allPosterLinks.find((pl) => cleanUrlParts(pl).segments.length >= 2);
-          }
-
           if (matchedTwoParamLink) {
             item.site = matchedTwoParamLink;
             await Info.updateOne(
               { _id: item._id },
-              { $set: { site: matchedTwoParamLink, root: poster._id, poster: poster.username } }
+              { $set: { site: matchedTwoParamLink } }
             ).catch(() => {});
           }
         }
@@ -2560,7 +2571,7 @@ export const get_amount_summary = async (req, res) => {
         { posterId: id },
         { username: id },
       ],
-    });
+    }).populate('root');
     let query = {};
     if (posterFound) {
       const posterIds = [posterFound._id.toString()];
@@ -2571,42 +2582,26 @@ export const get_amount_summary = async (req, res) => {
         posterIds.push(posterFound.username);
       }
 
-      const linksFromLinkColl = await Link.find({
-        $or: [{ root: posterFound._id }, { username: posterFound.username }],
-      }).select('linkName').lean();
-
-      const allPosterLinks = Array.from(
-        new Set([
-          ...(posterFound.links || []),
-          ...linksFromLinkColl.map((l) => l.linkName).filter(Boolean),
-        ])
-      );
-
-      const linkPrefixes = allPosterLinks
-        .map((l) => {
-          try {
-            const u = new URL(l.startsWith('http') ? l : `https://${l}`);
-            const parts = u.pathname.split('/').filter(Boolean);
-            if (parts.length >= 2) return `${u.origin}/${parts[0]}`;
-          } catch (e) {}
-          return null;
-        })
-        .filter(Boolean);
-
-      const queryOr = [
+      const posterCriteria = [
         { root: posterFound._id },
         { poster: { $in: posterIds } },
       ];
       if (posterFound.details && posterFound.details.length > 0) {
-        queryOr.push({ _id: { $in: posterFound.details } });
+        posterCriteria.push({ _id: { $in: posterFound.details } });
       }
-      if (allPosterLinks.length > 0) {
-        queryOr.push({ site: { $in: allPosterLinks } });
+
+      const adminIdVal = posterFound.root?.adminId || posterFound.root?.username;
+      const baseConditions = [{ $or: posterCriteria }];
+      if (posterFound.links && posterFound.links.length > 0 && adminIdVal) {
+        baseConditions.push({
+          $and: [
+            { adminId: adminIdVal },
+            { site: { $in: posterFound.links } },
+          ],
+        });
       }
-      if (linkPrefixes.length > 0) {
-        queryOr.push({ site: { $in: linkPrefixes } });
-      }
-      query = { $or: queryOr };
+
+      query = { $or: baseConditions };
     } else {
       const userFound = await User.findOne({
         $or: [
@@ -2710,22 +2705,37 @@ export const get_amount_list = async (req, res) => {
       .limit(pageSize)
       .lean();
 
+    let adminPosterIds = [];
+    if (posterFound) {
+      adminPosterIds = [posterFound._id];
+    } else {
+      const postersOfAdmin = await Poster.find({ root: userFound._id }).select('_id username posterId');
+      adminPosterIds = postersOfAdmin.map((p) => p._id);
+    }
+
     const populatedInfos = await Promise.all(
       infos.map(async (info) => {
         let posterResolved = null;
 
         if (info.site) {
-          // Check if info.site matches any Link in Link collection
-          let linkFound = await Link.findOne({ linkName: info.site })
+          // Check if info.site matches any Link belonging to this admin's posters
+          let linkQuery = { linkName: info.site };
+          if (adminPosterIds.length > 0) {
+            linkQuery.root = { $in: adminPosterIds };
+          }
+
+          let linkFound = await Link.findOne(linkQuery)
             .populate({ path: 'root', select: 'username posterId' })
             .lean();
 
           if (!linkFound) {
             // Check if info.site was a single-param prefix of a 2-param Link
             const escapedSite = info.site.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            linkFound = await Link.findOne({
-              linkName: new RegExp(`^${escapedSite}/`, 'i'),
-            })
+            let regexLinkQuery = { linkName: new RegExp(`^${escapedSite}/`, 'i') };
+            if (adminPosterIds.length > 0) {
+              regexLinkQuery.root = { $in: adminPosterIds };
+            }
+            linkFound = await Link.findOne(regexLinkQuery)
               .populate({ path: 'root', select: 'username posterId' })
               .lean();
           }
@@ -2739,7 +2749,10 @@ export const get_amount_list = async (req, res) => {
             if (linkFound.root) {
               posterResolved = linkFound.root;
             } else if (linkFound.username) {
-              posterResolved = await Poster.findOne({ username: linkFound.username })
+              posterResolved = await Poster.findOne({
+                username: linkFound.username,
+                ...(posterFound ? { _id: posterFound._id } : { root: userFound._id }),
+              })
                 .select('username posterId')
                 .lean();
             }
@@ -2747,7 +2760,11 @@ export const get_amount_list = async (req, res) => {
         }
 
         if (!posterResolved && info.site) {
-          const amountFound = await Amount.findOne({ site: info.site }).lean();
+          const amountQuery = { site: info.site };
+          if (userFound?.adminId) {
+            amountQuery.adminId = userFound.adminId;
+          }
+          const amountFound = await Amount.findOne(amountQuery).lean();
           if (amountFound?.posterId && amountFound.posterId !== 'undefined' && amountFound.posterId !== 'null') {
             posterResolved = await Poster.findOne({
               $or: [
@@ -2755,6 +2772,7 @@ export const get_amount_list = async (req, res) => {
                 { posterId: amountFound.posterId },
                 { username: amountFound.posterId },
               ],
+              ...(posterFound ? { _id: posterFound._id } : { root: userFound._id }),
             }).select('username posterId').lean();
           }
         }
@@ -2774,6 +2792,7 @@ export const get_amount_list = async (req, res) => {
                 { posterId: info.poster },
                 { username: info.poster },
               ],
+              ...(posterFound ? { _id: posterFound._id } : { root: userFound._id }),
             }).select('username posterId').lean();
             if (p) {
               info.root = p;
@@ -2859,7 +2878,7 @@ export const get_withdraw_summary = async (req, res) => {
         { posterId: id },
         { username: id },
       ],
-    });
+    }).populate('root');
     let query = {};
     let userId = id;
     if (posterFound) {
@@ -2871,42 +2890,26 @@ export const get_withdraw_summary = async (req, res) => {
         posterIds.push(posterFound.username);
       }
 
-      const linksFromLinkColl = await Link.find({
-        $or: [{ root: posterFound._id }, { username: posterFound.username }],
-      }).select('linkName').lean();
-
-      const allPosterLinks = Array.from(
-        new Set([
-          ...(posterFound.links || []),
-          ...linksFromLinkColl.map((l) => l.linkName).filter(Boolean),
-        ])
-      );
-
-      const linkPrefixes = allPosterLinks
-        .map((l) => {
-          try {
-            const u = new URL(l.startsWith('http') ? l : `https://${l}`);
-            const parts = u.pathname.split('/').filter(Boolean);
-            if (parts.length >= 2) return `${u.origin}/${parts[0]}`;
-          } catch (e) {}
-          return null;
-        })
-        .filter(Boolean);
-
-      const queryOr = [
+      const posterCriteria = [
         { root: posterFound._id },
         { poster: { $in: posterIds } },
       ];
       if (posterFound.details && posterFound.details.length > 0) {
-        queryOr.push({ _id: { $in: posterFound.details } });
+        posterCriteria.push({ _id: { $in: posterFound.details } });
       }
-      if (allPosterLinks.length > 0) {
-        queryOr.push({ site: { $in: allPosterLinks } });
+
+      const adminIdVal = posterFound.root?.adminId || posterFound.root?.username;
+      const baseConditions = [{ $or: posterCriteria }];
+      if (posterFound.links && posterFound.links.length > 0 && adminIdVal) {
+        baseConditions.push({
+          $and: [
+            { adminId: adminIdVal },
+            { site: { $in: posterFound.links } },
+          ],
+        });
       }
-      if (linkPrefixes.length > 0) {
-        queryOr.push({ site: { $in: linkPrefixes } });
-      }
-      query = { $or: queryOr };
+
+      query = { $or: baseConditions };
       userId = posterFound._id.toString();
     } else {
       const userFound = await User.findOne({
@@ -3016,13 +3019,13 @@ export const request_withdraw = async (req, res) => {
         { posterId: id },
         { username: id },
       ],
-    });
+    }).populate('root');
     let userId = id;
     let rootId = null;
     let query = {};
     if (posterFound) {
       userId = posterFound._id.toString();
-      rootId = posterFound.root;
+      rootId = posterFound.root?._id || posterFound.root;
       const posterIds = [posterFound._id.toString()];
       if (posterFound.posterId && posterFound.posterId.trim() !== '') {
         posterIds.push(posterFound.posterId);
@@ -3031,42 +3034,26 @@ export const request_withdraw = async (req, res) => {
         posterIds.push(posterFound.username);
       }
 
-      const linksFromLinkColl = await Link.find({
-        $or: [{ root: posterFound._id }, { username: posterFound.username }],
-      }).select('linkName').lean();
-
-      const allPosterLinks = Array.from(
-        new Set([
-          ...(posterFound.links || []),
-          ...linksFromLinkColl.map((l) => l.linkName).filter(Boolean),
-        ])
-      );
-
-      const linkPrefixes = allPosterLinks
-        .map((l) => {
-          try {
-            const u = new URL(l.startsWith('http') ? l : `https://${l}`);
-            const parts = u.pathname.split('/').filter(Boolean);
-            if (parts.length >= 2) return `${u.origin}/${parts[0]}`;
-          } catch (e) {}
-          return null;
-        })
-        .filter(Boolean);
-
-      const queryOr = [
+      const posterCriteria = [
         { root: posterFound._id },
         { poster: { $in: posterIds } },
       ];
       if (posterFound.details && posterFound.details.length > 0) {
-        queryOr.push({ _id: { $in: posterFound.details } });
+        posterCriteria.push({ _id: { $in: posterFound.details } });
       }
-      if (allPosterLinks.length > 0) {
-        queryOr.push({ site: { $in: allPosterLinks } });
+
+      const adminIdVal = posterFound.root?.adminId || posterFound.root?.username;
+      const baseConditions = [{ $or: posterCriteria }];
+      if (posterFound.links && posterFound.links.length > 0 && adminIdVal) {
+        baseConditions.push({
+          $and: [
+            { adminId: adminIdVal },
+            { site: { $in: posterFound.links } },
+          ],
+        });
       }
-      if (linkPrefixes.length > 0) {
-        queryOr.push({ site: { $in: linkPrefixes } });
-      }
-      query = { $or: queryOr };
+
+      query = { $or: baseConditions };
     } else {
       const userFound = await User.findOne({
         $or: [
