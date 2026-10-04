@@ -933,22 +933,45 @@ export const poster_details = async (req, res) => {
     }
 
     const linksFromLinkColl = await Link.find({
-      $or: [{ root: id }, { username: poster.username }],
+      $or: [
+        { root: id },
+        { root: poster._id },
+        { username: poster.username },
+        { posterId: poster.posterId },
+        { posterId: id },
+      ],
     }).select('linkName').lean();
+
+    const cleanUrlParts = (rawUrl) => {
+      if (!rawUrl) return { host: '', segments: [] };
+      try {
+        const u = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+        const host = u.host.replace(/^www\./i, '').toLowerCase();
+        const segments = u.pathname.split('/').filter(Boolean);
+        return { host, segments };
+      } catch (e) {
+        return { host: '', segments: [] };
+      }
+    };
 
     const allPosterLinks = Array.from(
       new Set([
         ...(poster.links || []),
         ...linksFromLinkColl.map((l) => l.linkName).filter(Boolean),
       ])
-    );
+    ).sort((a, b) => {
+      const aParts = cleanUrlParts(a).segments.length;
+      const bParts = cleanUrlParts(b).segments.length;
+      return bParts - aParts; // 2-param links first
+    });
 
-    if (allPosterLinks.length > (poster.links || []).length) {
+    if (allPosterLinks.length > (poster.links || []).length || JSON.stringify(poster.links) !== JSON.stringify(allPosterLinks)) {
       poster.links = allPosterLinks;
       await poster.save().catch(() => {});
     }
 
     const posterIds = [id];
+    if (poster?._id) posterIds.push(poster._id.toString());
     if (poster?.posterId) posterIds.push(poster.posterId);
     if (poster?.username) posterIds.push(poster.username);
 
@@ -966,9 +989,13 @@ export const poster_details = async (req, res) => {
       .filter(Boolean);
 
     const queryOr = [
+      { root: poster._id },
       { root: id },
       { poster: { $in: posterIds } },
     ];
+    if (poster.details && poster.details.length > 0) {
+      queryOr.push({ _id: { $in: poster.details } });
+    }
     if (allPosterLinks.length > 0) {
       queryOr.push({ site: { $in: allPosterLinks } });
     }
@@ -1013,28 +1040,39 @@ export const poster_details = async (req, res) => {
     const enrichedDetails = await Promise.all(
       details.map(async (item) => {
         if (item.site) {
-          const matchedTwoParamLink = allPosterLinks.find((pl) => {
+          const itemParts = cleanUrlParts(item.site);
+
+          // If item.site already has 2 or more segments, keep it as is
+          if (itemParts.segments.length >= 2) {
+            return item;
+          }
+
+          // Otherwise, find a 2-parameter link for this poster with matching first segment
+          let matchedTwoParamLink = allPosterLinks.find((pl) => {
             if (!pl) return false;
-            if (pl === item.site) return true;
-            try {
-              const plUrl = new URL(pl.startsWith('http') ? pl : `https://${pl}`);
-              const itemUrl = new URL(item.site.startsWith('http') ? item.site : `https://${item.site}`);
-              if (plUrl.host === itemUrl.host) {
-                const plSegments = plUrl.pathname.split('/').filter(Boolean);
-                const itemSegments = itemUrl.pathname.split('/').filter(Boolean);
-                if (plSegments.length >= 2 && itemSegments.length === 1 && plSegments[0] === itemSegments[0]) {
-                  return true;
-                }
-              }
-            } catch (e) {}
+            const plParts = cleanUrlParts(pl);
+            if (plParts.segments.length < 2) return false;
+
+            if (itemParts.host && plParts.host && itemParts.host !== plParts.host) {
+              return false;
+            }
+
+            if (itemParts.segments.length === 1) {
+              return plParts.segments[0].toLowerCase() === itemParts.segments[0].toLowerCase();
+            }
             return false;
           });
+
+          // Fallback: if no prefix match but poster has a 2-parameter link, use the poster's 2-parameter link
+          if (!matchedTwoParamLink) {
+            matchedTwoParamLink = allPosterLinks.find((pl) => cleanUrlParts(pl).segments.length >= 2);
+          }
 
           if (matchedTwoParamLink) {
             item.site = matchedTwoParamLink;
             await Info.updateOne(
               { _id: item._id },
-              { $set: { site: matchedTwoParamLink, root: id, poster: poster.username } }
+              { $set: { site: matchedTwoParamLink, root: poster._id, poster: poster.username } }
             ).catch(() => {});
           }
         }
@@ -2517,7 +2555,11 @@ export const get_amount_summary = async (req, res) => {
 
   try {
     const posterFound = await Poster.findOne({
-      $or: [{ posterId: id }, { _id: id && id.length === 24 ? id : null }],
+      $or: [
+        { _id: id && id.length === 24 ? id : null },
+        { posterId: id },
+        { username: id },
+      ],
     });
     let query = {};
     if (posterFound) {
@@ -2525,7 +2567,46 @@ export const get_amount_summary = async (req, res) => {
       if (posterFound.posterId && posterFound.posterId.trim() !== '') {
         posterIds.push(posterFound.posterId);
       }
-      query = { poster: { $in: posterIds } };
+      if (posterFound.username) {
+        posterIds.push(posterFound.username);
+      }
+
+      const linksFromLinkColl = await Link.find({
+        $or: [{ root: posterFound._id }, { username: posterFound.username }],
+      }).select('linkName').lean();
+
+      const allPosterLinks = Array.from(
+        new Set([
+          ...(posterFound.links || []),
+          ...linksFromLinkColl.map((l) => l.linkName).filter(Boolean),
+        ])
+      );
+
+      const linkPrefixes = allPosterLinks
+        .map((l) => {
+          try {
+            const u = new URL(l.startsWith('http') ? l : `https://${l}`);
+            const parts = u.pathname.split('/').filter(Boolean);
+            if (parts.length >= 2) return `${u.origin}/${parts[0]}`;
+          } catch (e) {}
+          return null;
+        })
+        .filter(Boolean);
+
+      const queryOr = [
+        { root: posterFound._id },
+        { poster: { $in: posterIds } },
+      ];
+      if (posterFound.details && posterFound.details.length > 0) {
+        queryOr.push({ _id: { $in: posterFound.details } });
+      }
+      if (allPosterLinks.length > 0) {
+        queryOr.push({ site: { $in: allPosterLinks } });
+      }
+      if (linkPrefixes.length > 0) {
+        queryOr.push({ site: { $in: linkPrefixes } });
+      }
+      query = { $or: queryOr };
     } else {
       const userFound = await User.findOne({
         $or: [
@@ -2547,7 +2628,13 @@ export const get_amount_summary = async (req, res) => {
         const val = parseFloat(info.amount);
         if (!isNaN(val)) {
           const status = info.status;
-          if (status === true || status === 'true') {
+          if (
+            status === true ||
+            status === 'true' ||
+            status === 'paid' ||
+            status === 'success' ||
+            status === 'successful'
+          ) {
             total += val;
           }
         }
@@ -2767,7 +2854,11 @@ export const get_withdraw_summary = async (req, res) => {
 
   try {
     const posterFound = await Poster.findOne({
-      $or: [{ posterId: id }, { _id: id && id.length === 24 ? id : null }],
+      $or: [
+        { _id: id && id.length === 24 ? id : null },
+        { posterId: id },
+        { username: id },
+      ],
     });
     let query = {};
     let userId = id;
@@ -2776,7 +2867,46 @@ export const get_withdraw_summary = async (req, res) => {
       if (posterFound.posterId && posterFound.posterId.trim() !== '') {
         posterIds.push(posterFound.posterId);
       }
-      query = { poster: { $in: posterIds } };
+      if (posterFound.username) {
+        posterIds.push(posterFound.username);
+      }
+
+      const linksFromLinkColl = await Link.find({
+        $or: [{ root: posterFound._id }, { username: posterFound.username }],
+      }).select('linkName').lean();
+
+      const allPosterLinks = Array.from(
+        new Set([
+          ...(posterFound.links || []),
+          ...linksFromLinkColl.map((l) => l.linkName).filter(Boolean),
+        ])
+      );
+
+      const linkPrefixes = allPosterLinks
+        .map((l) => {
+          try {
+            const u = new URL(l.startsWith('http') ? l : `https://${l}`);
+            const parts = u.pathname.split('/').filter(Boolean);
+            if (parts.length >= 2) return `${u.origin}/${parts[0]}`;
+          } catch (e) {}
+          return null;
+        })
+        .filter(Boolean);
+
+      const queryOr = [
+        { root: posterFound._id },
+        { poster: { $in: posterIds } },
+      ];
+      if (posterFound.details && posterFound.details.length > 0) {
+        queryOr.push({ _id: { $in: posterFound.details } });
+      }
+      if (allPosterLinks.length > 0) {
+        queryOr.push({ site: { $in: allPosterLinks } });
+      }
+      if (linkPrefixes.length > 0) {
+        queryOr.push({ site: { $in: linkPrefixes } });
+      }
+      query = { $or: queryOr };
       userId = posterFound._id.toString();
     } else {
       const userFound = await User.findOne({
@@ -2881,7 +3011,11 @@ export const request_withdraw = async (req, res) => {
 
   try {
     const posterFound = await Poster.findOne({
-      $or: [{ posterId: id }, { _id: id && id.length === 24 ? id : null }],
+      $or: [
+        { _id: id && id.length === 24 ? id : null },
+        { posterId: id },
+        { username: id },
+      ],
     });
     let userId = id;
     let rootId = null;
@@ -2893,7 +3027,46 @@ export const request_withdraw = async (req, res) => {
       if (posterFound.posterId && posterFound.posterId.trim() !== '') {
         posterIds.push(posterFound.posterId);
       }
-      query = { poster: { $in: posterIds } };
+      if (posterFound.username) {
+        posterIds.push(posterFound.username);
+      }
+
+      const linksFromLinkColl = await Link.find({
+        $or: [{ root: posterFound._id }, { username: posterFound.username }],
+      }).select('linkName').lean();
+
+      const allPosterLinks = Array.from(
+        new Set([
+          ...(posterFound.links || []),
+          ...linksFromLinkColl.map((l) => l.linkName).filter(Boolean),
+        ])
+      );
+
+      const linkPrefixes = allPosterLinks
+        .map((l) => {
+          try {
+            const u = new URL(l.startsWith('http') ? l : `https://${l}`);
+            const parts = u.pathname.split('/').filter(Boolean);
+            if (parts.length >= 2) return `${u.origin}/${parts[0]}`;
+          } catch (e) {}
+          return null;
+        })
+        .filter(Boolean);
+
+      const queryOr = [
+        { root: posterFound._id },
+        { poster: { $in: posterIds } },
+      ];
+      if (posterFound.details && posterFound.details.length > 0) {
+        queryOr.push({ _id: { $in: posterFound.details } });
+      }
+      if (allPosterLinks.length > 0) {
+        queryOr.push({ site: { $in: allPosterLinks } });
+      }
+      if (linkPrefixes.length > 0) {
+        queryOr.push({ site: { $in: linkPrefixes } });
+      }
+      query = { $or: queryOr };
     } else {
       const userFound = await User.findOne({
         $or: [
@@ -2967,7 +3140,11 @@ export const get_withdraw_list = async (req, res) => {
 
   try {
     const posterFound = await Poster.findOne({
-      $or: [{ posterId: id }, { _id: id && id.length === 24 ? id : null }],
+      $or: [
+        { _id: id && id.length === 24 ? id : null },
+        { posterId: id },
+        { username: id },
+      ],
     });
     let withdraws = [];
     if (posterFound) {
