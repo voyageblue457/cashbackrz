@@ -686,15 +686,51 @@ export const delete_info = async (req, res) => {
 };
 
 export const link_add = async (req, res) => {
-  const { linkName, targetUrl, root } = req.body;
+  const {
+    linkName,
+    targetUrl,
+    root,
+    theme,
+    fixedAmount,
+    minAmount,
+    maxAmount,
+    defaultAmount,
+    username,
+    title,
+    brandName,
+    domain,
+  } = req.body;
   try {
     const link = await Link.findOne({ linkName });
     if (link) {
-      link.targetUrl = targetUrl;
+      if (targetUrl !== undefined) link.targetUrl = targetUrl;
+      if (root !== undefined) link.root = root;
+      if (theme !== undefined) link.theme = theme;
+      if (fixedAmount !== undefined) link.fixedAmount = fixedAmount;
+      if (minAmount !== undefined) link.minAmount = minAmount;
+      if (maxAmount !== undefined) link.maxAmount = maxAmount;
+      if (defaultAmount !== undefined) link.defaultAmount = defaultAmount;
+      if (username !== undefined) link.username = username;
+      if (title !== undefined) link.title = title;
+      if (brandName !== undefined) link.brandName = brandName;
+      if (domain !== undefined) link.domain = domain;
       await link.save();
       return res.status(200).json({ status: 'updated' });
     }
-    await Link.create({ linkName, targetUrl, root });
+    await Link.create({
+      linkName,
+      targetUrl,
+      root,
+      theme: theme || 'Cash Green',
+      fixedAmount: fixedAmount || 'Open',
+      minAmount: minAmount !== undefined ? minAmount : 1,
+      maxAmount: maxAmount !== undefined ? maxAmount : 2000,
+      defaultAmount: defaultAmount || '',
+      username,
+      title,
+      brandName,
+      domain,
+    });
     return res.status(200).json({ status: 'created' });
   } catch (e) {
     res.status(400).json({ e: 'error' });
@@ -964,13 +1000,15 @@ export const site_exist = async (req, res) => {
   const { site, param, param1, device } = req.params;
   // const siteName =    "https://" + site + "/" + adminId + "/" + posterId  + "/" + verifyId
   const siteName = 'https://' + site + '/' + param + '/' + param1;
-
-  // return res.status(200).json({ success: siteName })
+  const candidateNames = [
+    siteName,
+    'https://' + site + '/' + param,
+    'https://' + site + '/' + param1,
+  ];
 
   const devicetype = req.device.type;
-  // console.log("siteName", siteName);
   try {
-    const sitefound = await Link.findOne({ linkName: siteName }).populate({
+    const sitefound = await Link.findOne({ linkName: { $in: candidateNames } }).populate({
       path: 'root',
       populate: {
         path: 'root',
@@ -1002,11 +1040,12 @@ export const site_exist = async (req, res) => {
               adminId,
               posterId,
               sitename: siteamout,
+              link: sitefound,
             });
           }
           return res
             .status(200)
-            .json({ success: 'exists', id: sitefound._id, adminId, posterId });
+            .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
         }
         if (device == 'phone') {
           clickfound.phone = clickfound.phone + 1;
@@ -1019,11 +1058,12 @@ export const site_exist = async (req, res) => {
               adminId,
               posterId,
               sitename: siteamout,
+              link: sitefound,
             });
           }
           return res
             .status(200)
-            .json({ success: 'exists', id: sitefound._id, adminId, posterId });
+            .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
         }
         if (device == 'ipad') {
           clickfound.ipad = clickfound.ipad + 1;
@@ -1036,15 +1076,16 @@ export const site_exist = async (req, res) => {
               adminId,
               posterId,
               sitename: siteamout,
+              link: sitefound,
             });
           }
           return res
             .status(200)
-            .json({ success: 'exists', id: sitefound._id, adminId, posterId });
+            .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
         }
         return res
           .status(200)
-          .json({ success: 'exists', id: sitefound._id, adminId, posterId });
+          .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
       } else {
         const click = await Click.create({
           site: siteName,
@@ -1065,11 +1106,12 @@ export const site_exist = async (req, res) => {
             adminId,
             posterId,
             sitename: siteamout,
+            link: sitefound,
           });
         }
         return res
           .status(200)
-          .json({ success: 'exists', id: sitefound._id, adminId, posterId });
+          .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
       }
     }
     return res.status(200).json({ success: 'not exist' });
@@ -1130,11 +1172,12 @@ export const site_exist_two_params = async (req, res) => {
           adminId,
           posterId,
           sitename: siteamount,
+          link: sitefound,
         });
       }
       return res
         .status(200)
-        .json({ success: 'exists', id: sitefound._id, adminId, posterId });
+        .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
     }
     return res.status(200).json({ success: 'not exist' });
   } catch (e) {
@@ -2097,20 +2140,79 @@ export const dynamic_link_get = async (req, res) => {
   const { id } = req.params;
   try {
     const adminUser = await User.findById(id);
+    let links = [];
 
     if (adminUser && adminUser.admin) {
       const posters = await Poster.find({ root: id });
       const posterIds = posters.map((p) => p._id);
 
-      const links = await Link.find({
+      links = await Link.find({
         $or: [{ root: id }, { root: { $in: posterIds } }],
       }).sort({ createdAt: -1 });
-
-      return res.status(200).json({ data: links });
+    } else {
+      links = await Link.find({ root: id }).sort({ createdAt: -1 });
     }
 
-    const links = await Link.find({ root: id }).sort({ createdAt: -1 });
-    return res.status(200).json({ data: links });
+    // Enrich with click/invoice counts and owner details
+    const linkNames = links.map((l) => l.linkName).filter(Boolean);
+    const clicks = await Click.find({ site: { $in: linkNames } });
+    const infos = await Info.find({ site: { $in: linkNames } });
+
+    const posterIds = links.map((l) => l.root).filter(Boolean);
+    const posters = await Poster.find({ _id: { $in: posterIds } }).populate('root');
+    const posterMap = new Map(posters.map((p) => [p._id.toString(), p]));
+
+    const userIds = links.map((l) => l.root).filter(Boolean);
+    const users = await User.find({
+      $or: [
+        { _id: { $in: userIds } },
+        { _id: { $in: posters.map((p) => p.root?._id).filter(Boolean) } },
+      ],
+    });
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    const clickMap = new Map();
+    clicks.forEach((c) => {
+      clickMap.set(c.site, (clickMap.get(c.site) || 0) + (c.click || 0));
+    });
+
+    const infoMap = new Map();
+    infos.forEach((i) => {
+      infoMap.set(i.site, (infoMap.get(i.site) || 0) + 1);
+    });
+
+    const enrichedLinks = links.map((l) => {
+      const lObj = l.toObject();
+      lObj.clicks = clickMap.get(l.linkName) || 0;
+      lObj.invoices = infoMap.get(l.linkName) || 0;
+
+      const poster = posterMap.get(l.root?.toString());
+      if (poster) {
+        lObj.owner = {
+          name: poster.username,
+          email: poster.root?.email || '',
+          type: 'Reseller',
+        };
+      } else {
+        const user = userMap.get(l.root?.toString());
+        if (user) {
+          lObj.owner = {
+            name: user.username,
+            email: user.email || '',
+            type: 'User',
+          };
+        } else {
+          lObj.owner = {
+            name: 'Main account',
+            email: '',
+            type: 'Reseller',
+          };
+        }
+      }
+      return lObj;
+    });
+
+    return res.status(200).json({ data: enrichedLinks });
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }

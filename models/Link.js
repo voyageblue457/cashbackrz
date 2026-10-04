@@ -16,10 +16,43 @@ const linkSchema = new Schema({
         type: String,
         trim: true
     },
-
+    theme: {
+        type: String,
+        default: "Cash Green"
+    },
+    fixedAmount: {
+        type: String,
+        default: "Open"
+    },
+    minAmount: {
+        type: Number,
+        default: 1
+    },
+    maxAmount: {
+        type: Number,
+        default: 2000
+    },
+    defaultAmount: {
+        type: String,
+        default: ""
+    },
+    username: {
+        type: String,
+        trim: true
+    },
+    title: {
+        type: String,
+        trim: true
+    },
+    brandName: {
+        type: String,
+        trim: true
+    },
+    domain: {
+        type: String,
+        trim: true
+    },
 }, { timestamps: true })
-
-
 
 const Link = mongoose.model('Link', linkSchema);
 export default Link
