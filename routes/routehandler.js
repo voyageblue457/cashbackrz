@@ -2651,11 +2651,7 @@ export const get_amount_list = async (req, res) => {
 
   try {
     const posterFound = await Poster.findOne({
-      $or: [
-        { posterId: id },
-        { _id: id && id.length === 24 ? id : null },
-        { username: id },
-      ],
+      $or: [{ posterId: id }, { _id: id && id.length === 24 ? id : null }],
     });
     let query = {};
     if (posterFound) {
@@ -2699,115 +2695,14 @@ export const get_amount_list = async (req, res) => {
       .select(
         'site email amount createdAt adminId poster root status lightningInvoice rHash'
       )
-      .populate('root', 'username posterId')
+      .populate('root', 'username')
       .sort(sort)
       .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean();
-
-    let adminPosterIds = [];
-    if (posterFound) {
-      adminPosterIds = [posterFound._id];
-    } else {
-      const postersOfAdmin = await Poster.find({ root: userFound._id }).select('_id username posterId');
-      adminPosterIds = postersOfAdmin.map((p) => p._id);
-    }
-
-    const populatedInfos = await Promise.all(
-      infos.map(async (info) => {
-        let posterResolved = null;
-
-        if (info.site) {
-          // Check if info.site matches any Link belonging to this admin's posters
-          let linkQuery = { linkName: info.site };
-          if (adminPosterIds.length > 0) {
-            linkQuery.root = { $in: adminPosterIds };
-          }
-
-          let linkFound = await Link.findOne(linkQuery)
-            .populate({ path: 'root', select: 'username posterId' })
-            .lean();
-
-          if (!linkFound) {
-            // Check if info.site was a single-param prefix of a 2-param Link
-            const escapedSite = info.site.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            let regexLinkQuery = { linkName: new RegExp(`^${escapedSite}/`, 'i') };
-            if (adminPosterIds.length > 0) {
-              regexLinkQuery.root = { $in: adminPosterIds };
-            }
-            linkFound = await Link.findOne(regexLinkQuery)
-              .populate({ path: 'root', select: 'username posterId' })
-              .lean();
-          }
-
-          if (linkFound) {
-            if (linkFound.linkName && linkFound.linkName !== info.site) {
-              info.site = linkFound.linkName;
-              await Info.updateOne({ _id: info._id }, { $set: { site: linkFound.linkName } }).catch(() => {});
-            }
-
-            if (linkFound.root) {
-              posterResolved = linkFound.root;
-            } else if (linkFound.username) {
-              posterResolved = await Poster.findOne({
-                username: linkFound.username,
-                ...(posterFound ? { _id: posterFound._id } : { root: userFound._id }),
-              })
-                .select('username posterId')
-                .lean();
-            }
-          }
-        }
-
-        if (!posterResolved && info.site) {
-          const amountQuery = { site: info.site };
-          if (userFound?.adminId) {
-            amountQuery.adminId = userFound.adminId;
-          }
-          const amountFound = await Amount.findOne(amountQuery).lean();
-          if (amountFound?.posterId && amountFound.posterId !== 'undefined' && amountFound.posterId !== 'null') {
-            posterResolved = await Poster.findOne({
-              $or: [
-                { _id: amountFound.posterId.length === 24 ? amountFound.posterId : null },
-                { posterId: amountFound.posterId },
-                { username: amountFound.posterId },
-              ],
-              ...(posterFound ? { _id: posterFound._id } : { root: userFound._id }),
-            }).select('username posterId').lean();
-          }
-        }
-
-        if (posterResolved) {
-          info.root = posterResolved;
-          info.poster = posterResolved.username || posterResolved.posterId;
-          await Info.updateOne(
-            { _id: info._id },
-            { $set: { root: posterResolved._id, poster: posterResolved.username || posterResolved.posterId } }
-          ).catch(() => {});
-        } else if (!info.root) {
-          if (info.poster && info.poster !== 'undefined' && info.poster !== 'null') {
-            const p = await Poster.findOne({
-              $or: [
-                { _id: info.poster.length === 24 ? info.poster : null },
-                { posterId: info.poster },
-                { username: info.poster },
-              ],
-              ...(posterFound ? { _id: posterFound._id } : { root: userFound._id }),
-            }).select('username posterId').lean();
-            if (p) {
-              info.root = p;
-            } else {
-              info.root = { username: info.poster, _id: info.poster };
-            }
-          }
-        }
-        return info;
-      })
-    );
+      .limit(pageSize);
 
     return res.status(200).json({
       success: true,
-      data: populatedInfos,
+      data: infos,
       total,
       page,
       pageSize,
