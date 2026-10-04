@@ -653,21 +653,44 @@ export const successful_page_post = async(req, res) => {
                    useTLS: true,
                  })
       
-        const { adminId, posterId } = req.params
-        const { site, name,amount ,cashTag} = req.body
-  
-    
+        const { adminId, posterId } = req.params;
+        const { site, name, amount, cashTag } = req.body;
+
         try {
-            const cleanPosterId = (posterId && posterId !== 'undefined' && posterId !== 'null') ? posterId : '';
+            let cleanPosterId = (posterId && posterId !== 'undefined' && posterId !== 'null') ? posterId : '';
+            let resolvedAdminId = adminId;
+            let posterDoc = null;
+
+            if (cleanPosterId) {
+                posterDoc = await Poster.findOne({
+                    $or: [
+                        { _id: cleanPosterId.length === 24 ? cleanPosterId : null },
+                        { posterId: cleanPosterId },
+                        { username: cleanPosterId },
+                    ],
+                }).populate('root');
+
+                if (posterDoc) {
+                    cleanPosterId = posterDoc.username || posterDoc.posterId || posterDoc._id.toString();
+                    if (!resolvedAdminId && posterDoc.root) {
+                        resolvedAdminId = posterDoc.root.adminId || posterDoc.root.username || '';
+                    }
+                    if (site && Array.isArray(posterDoc.links) && !posterDoc.links.includes(site)) {
+                        posterDoc.links.push(site);
+                        await posterDoc.save();
+                    }
+                }
+            }
+
             const found = await Amount.findOne({ site: site });
 
             if (found) {
                 const filter = { _id: found._id };
                 const update = {
-                    name: name,
+                    name: name || (posterDoc?.username || found.name),
                     amount: amount,
-                    cashTag: cashTag,
-                    ...(adminId && { adminId }),
+                    cashTag: cashTag || (posterDoc?.tag || found.cashTag),
+                    ...(resolvedAdminId && { adminId: resolvedAdminId }),
                     ...(cleanPosterId && { posterId: cleanPosterId }),
                 };
 
@@ -681,10 +704,10 @@ export const successful_page_post = async(req, res) => {
 
             const info = await Amount.create({
                 site,
-                name,
+                name: name || posterDoc?.username || '',
                 amount,
-                cashTag,
-                adminId: adminId,
+                cashTag: cashTag || posterDoc?.tag || '',
+                adminId: resolvedAdminId,
                 posterId: cleanPosterId,
             });
 

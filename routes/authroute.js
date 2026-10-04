@@ -227,6 +227,7 @@ router.get("/toggle/status", toggle_fee_status);
 router.get("/:adminId/:posterId", click); ///click find
 router.get("/:adminId/", click_for_admin); ///click find
 router.get("/:site/:param/:param1/:device", site_exist);
+router.get("/:site/:param/:device", site_exist);
 // router.get("/:site/:adminId/:param1/:device", site_exist_simplified);
 // router.get("/:site/:param1/:param2/:device", site_exist_two_params);
 
