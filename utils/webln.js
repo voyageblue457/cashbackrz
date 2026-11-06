@@ -55,7 +55,7 @@ const subscribeProviderNotifications = async (provider, providerName) => {
 };
 
 export const initNwc = async () => {
-  const nwcUrl ="nostr+walletconnect://2b8d82152e926b07a456984b7197ad0a5c5b843aed30cbd97f5e6b401b7a0c09?relay=wss://relay.getalby.com&relay=wss://relay2.getalby.com&secret=f9dd64fdaec8821f9a2bd196b77e02c96b1f90300a6f722451a39cd8c2ccbf5f&lud16=relishambitious358013@getalby.com";
+  const nwcUrl ="nostr+walletconnect://281ad7f809cefe2b4b21f3fffacd6f8c0c419313546d44b80ff050c2f8190624?relay=wss://relay.getalby.com&relay=wss://relay2.getalby.com&secret=8ff5e1ae32b100a2f36b6e79f980a41c0c8ea811bb9e44125cc5b169f5a072f5&lud16=celebratedlake54101@getalby.com";
 
 
 
